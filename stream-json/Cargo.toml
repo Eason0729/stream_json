@@ -1,0 +1,11 @@
+[package]
+name = "stream-json"
+version.workspace = true
+edition.workspace = true
+
+[dependencies]
+bytes.workspace = true
+futures-core.workspace = true
+thiserror.workspace = true
+
+macros = { path = "../macros" }
