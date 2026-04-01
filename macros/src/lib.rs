@@ -1,6 +1,131 @@
+//! # stream-json-macros
+//!
+//! Procedural macros for [`stream-json`](https://docs.rs/stream-json), specifically the
+//! `#[derive(Serialize)]` macro.
+//!
+//! ## Derive Macro: `#[derive(Serialize)]
+//!
+//! The `Serialize` derive macro generates a streaming JSON serializer for structs and enums.
+//! It implements the [`Serializer`] trait using a state machine approach for memory-efficient
+//! serialization.
+//!
+//! ### Supported Types
+//!
+//! | Type | Output |
+//! |------|--------|
+//! | Named struct | `{"field1": value1, "field2": value2}` |
+//! | Tuple struct | `{"0": value0, "1": value1}` |
+//! | Unit struct | `{}` |
+//! | Unit enum variant | `[null]` |
+//! | Tuple enum variant | `[[value1, value2]]` |
+//! | Named enum variant | `[{field1: value1, field2: value2}]` |
+//!
+//! ### Attribute: `#[stream(rename = "...")]
+//!
+//! Use the `#[stream(rename = "...")]` attribute to rename fields or variants in the JSON output.
+//!
+//! #### Field Rename
+//!
+//! ```ignore
+//! #[derive(Serialize)]
+//! struct Person {
+//!     #[stream(rename = "userName")]
+//!     name: String,
+//!     #[stream(rename = "userAge")]
+//!     age: i32,
+//! }
+//!
+//! // Person { name: "Alice", age: 30 }
+//! // Serializes to: {"userName":"Alice","userAge":30}
+//! ```
+//!
+//! #### Variant Rename
+//!
+//! ```ignore
+//! #[derive(Serialize)]
+//! enum Status {
+//!     #[stream(rename = "is_active")]
+//!     Active,
+//!     #[stream(rename = "inactive")]
+//!     Inactive,
+//! }
+//!
+//! // Status::Active serializes to: ["is_active"]
+//! // Status::Inactive serializes to: ["inactive"]
+//! ```
+//!
+//! #### Variant Rename with Data
+//!
+//! ```ignore
+//! #[derive(Serialize)]
+//! enum Config {
+//!     #[stream(rename = "settings")]
+//!     Settings {
+//!         #[stream(rename = "debugMode")]
+//!         debug: bool,
+//!     },
+//!     #[stream(rename = "options")]
+//!     Options(Vec<String>),
+//! }
+//!
+//! // Config::Settings { debug: true }
+//! // Serializes to: ["settings"{"debugMode":true}]
+//!
+//! // Config::Options(vec!["a".to_string()])
+//! // Serializes to: ["options"["a"]]
+//! ```
+//!
+//! ### Generated Code
+//!
+//! The macro generates a serializer struct (`{}Serializer`) and a state enum
+//! (`{}State`) for internal state management. Users interact only with the
+//! [`IntoSerializer`] trait.
+//!
+//! ### Streaming Behavior
+//!
+//! The serializer uses a state machine that yields chunks of bytes on each
+//! `poll()` call. This allows processing of arbitrarily large data structures
+//! without buffering the entire output.
+
 use proc_macro::TokenStream;
 use quote::quote;
-use syn::{Data, DeriveInput, Fields};
+use syn::{Attribute, Data, DeriveInput, Fields};
+
+fn get_stream_rename(attr: &Attribute) -> Option<String> {
+    if !attr.path().is_ident("stream") {
+        return None;
+    }
+    let meta = attr.meta.require_name_value().ok()?;
+    if !meta.path.is_ident("rename") {
+        return None;
+    }
+    let syn::Expr::Lit(syn::ExprLit {
+        lit: syn::Lit::Str(lit_str),
+        ..
+    }) = &meta.value
+    else {
+        return None;
+    };
+    Some(lit_str.value())
+}
+
+fn get_field_rename(field: &syn::Field) -> Option<String> {
+    for attr in &field.attrs {
+        if let Some(rename) = get_stream_rename(attr) {
+            return Some(rename);
+        }
+    }
+    None
+}
+
+fn get_variant_rename(variant: &syn::Variant) -> Option<String> {
+    for attr in &variant.attrs {
+        if let Some(rename) = get_stream_rename(attr) {
+            return Some(rename);
+        }
+    }
+    None
+}
 
 #[proc_macro_derive(Serialize)]
 pub fn derive_serialize(item: TokenStream) -> TokenStream {
@@ -30,7 +155,8 @@ fn derive_struct(name: &syn::Ident, fields: &Fields) -> TokenStream {
             .iter()
             .map(|f| {
                 let key = f.ident.as_ref().expect("named field should have ident");
-                format!("\"{}\":", key)
+                let key_str = get_field_rename(f).unwrap_or_else(|| key.to_string());
+                format!("\"{}\":", key_str)
             })
             .collect(),
         Fields::Unnamed(fields) => fields
@@ -217,28 +343,56 @@ fn derive_enum(
     let emit_arms: Vec<_> = variants
         .iter()
         .enumerate()
-        .map(|(i, variant)| {
+        .map(|(_i, variant)| {
             let ident = &variant.ident;
 
             let output = match &variant.fields {
                 Fields::Unit => {
-                    quote! {
-                        self.state = #state_name::ClosingBracket;
-                        return std::task::Poll::Ready(Some(Ok(bytes::Bytes::from_static(b"null"))));
-                    }
-                }
-                Fields::Unnamed(fields) => {
-                    let count = fields.unnamed.len();
-                    if count == 0 {
+                    let variant_rename = get_variant_rename(variant);
+                    if let Some(rename) = variant_rename {
+                        let rename_str = format!("\"{}\"", rename);
+                        quote! {
+                            self.emit_pos = 0;
+                            return std::task::Poll::Ready(Some(Ok(bytes::Bytes::from_static(#rename_str.as_bytes()))));
+                        }
+                    } else {
                         quote! {
                             self.state = #state_name::ClosingBracket;
                             return std::task::Poll::Ready(Some(Ok(bytes::Bytes::from_static(b"null"))));
                         }
+                    }
+                }
+                Fields::Unnamed(fields) => {
+                    let count = fields.unnamed.len();
+                    let variant_rename = get_variant_rename(variant);
+                    if count == 0 {
+                        if let Some(rename) = variant_rename {
+                            let rename_str = format!("\"{}\"", rename);
+                            quote! {
+                                self.emit_pos = 0;
+                                return std::task::Poll::Ready(Some(Ok(bytes::Bytes::from_static(#rename_str.as_bytes()))));
+                            }
+                        } else {
+                            quote! {
+                                self.state = #state_name::ClosingBracket;
+                                return std::task::Poll::Ready(Some(Ok(bytes::Bytes::from_static(b"null"))));
+                            }
+                        }
                     } else {
-                        let open_arm = quote! {
-                            0 => {
-                                self.emit_pos = 1;
-                                return std::task::Poll::Ready(Some(Ok(bytes::Bytes::from_static(b"["))));
+                        let open_arm = if variant_rename.is_some() {
+                            let rename_str = format!("\"{}\"", variant_rename.unwrap());
+                            quote! {
+                                0 => {
+                                    self.emit_pos = 2;
+                                    return std::task::Poll::Ready(Some(Ok(bytes::Bytes::from_static(#rename_str.as_bytes()))));
+                                }
+                            }
+                        } else {
+                            quote! {
+                                0 => {
+                                    self.emit_pos = 1;
+                                    return std::task::Poll::Ready(Some(Ok(bytes::Bytes::from_static(b"["))));
+                                }
                             }
                         };
                         let field_arms: Vec<_> = (1..=count)
@@ -275,12 +429,23 @@ fn derive_enum(
                 }
                 Fields::Named(fields) => {
                     let count = fields.named.len();
-                    let keys: Vec<_> = fields.named.iter().map(|f| f.ident.as_ref().expect("named field should have ident")).collect();
+                    let keys: Vec<_> = fields.named.iter().map(|f| {
+                        get_field_rename(f).unwrap_or_else(|| f.ident.as_ref().expect("named field should have ident").to_string())
+                    }).collect();
                     let key_strings: Vec<String> = keys.iter().map(|k| format!("\"{}\":", k)).collect();
                     if count == 0 {
-                        quote! {
-                            self.state = #state_name::ClosingBracket;
-                            return std::task::Poll::Ready(Some(Ok(bytes::Bytes::from_static(b"null"))));
+                        let variant_rename = get_variant_rename(variant);
+                        if let Some(rename) = variant_rename {
+                            let rename_str = format!("\"{}\"", rename);
+                            quote! {
+                                self.emit_pos = 0;
+                                return std::task::Poll::Ready(Some(Ok(bytes::Bytes::from_static(#rename_str.as_bytes()))));
+                            }
+                        } else {
+                            quote! {
+                                self.state = #state_name::ClosingBracket;
+                                return std::task::Poll::Ready(Some(Ok(bytes::Bytes::from_static(b"null"))));
+                            }
                         }
                     } else {
                         let mut arms = Vec::new();
@@ -290,7 +455,7 @@ fn derive_enum(
                                 return std::task::Poll::Ready(Some(Ok(bytes::Bytes::from_static(b"{"))));
                             }
                         });
-                        for (idx, key) in keys.iter().enumerate() {
+                        for (idx, _key) in keys.iter().enumerate() {
                             let key_str = &key_strings[idx];
                             let key_pos = idx * 2 + 1;
                             let val_pos = idx * 2 + 2;
