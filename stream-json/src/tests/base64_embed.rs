@@ -5,7 +5,7 @@ use futures_core::task::Poll;
 use crate::base64_embed::Base64EmbedFile;
 use crate::error::Error;
 use crate::serde::{IntoSerializer, Serializer};
-use stream_json_macros::Serialize;
+use stream_json_macros::IntoSerializer;
 
 fn poll_next<S: Serializer + Unpin>(ser: &mut S) -> Option<Result<Bytes, Error>> {
     let waker = std::task::Waker::noop();
@@ -105,7 +105,7 @@ mod memory_tests {
     }
 }
 
-#[derive(Serialize)]
+#[derive(IntoSerializer)]
 struct OpenAiRequest {
     model: String,
     image_data: Base64EmbedFile<Cursor<Vec<u8>>>,

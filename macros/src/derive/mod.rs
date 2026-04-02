@@ -15,7 +15,7 @@ pub fn derive_enum(
     state_machine::build_enum(name, variants).into()
 }
 
-pub fn derive_serialize(item: TokenStream) -> TokenStream {
+pub fn derive_into_serializer(item: TokenStream) -> TokenStream {
     let input = syn::parse_macro_input!(item as DeriveInput);
     let name = &input.ident;
 

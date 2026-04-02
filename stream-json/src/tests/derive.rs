@@ -1,4 +1,4 @@
-use stream_json_macros::Serialize;
+use stream_json_macros::IntoSerializer;
 
 use crate::serde::IntoSerializer;
 use crate::serde::Serializer;
@@ -8,13 +8,13 @@ use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
 use std::task::Context;
 
-#[derive(Serialize)]
+#[derive(IntoSerializer)]
 struct Person {
     name: String,
     age: i32,
 }
 
-#[derive(Serialize)]
+#[derive(IntoSerializer)]
 struct RenamedPerson {
     #[stream(rename = "user_name")]
     name: String,
@@ -22,7 +22,7 @@ struct RenamedPerson {
     age: i32,
 }
 
-#[derive(Serialize)]
+#[derive(IntoSerializer)]
 struct ManyFields {
     field1: String,
     field2: i32,
@@ -38,13 +38,13 @@ struct ManyFields {
     field12: u32,
 }
 
-#[derive(Serialize)]
+#[derive(IntoSerializer)]
 struct NestedStruct {
     inner: Person,
     label: String,
 }
 
-#[derive(Serialize)]
+#[derive(IntoSerializer)]
 struct DeeplyNested {
     level1: NestedStruct,
     level2: NestedStruct,
@@ -60,7 +60,7 @@ fn test_derive_named_struct() {
     assert_eq!(&bytes[..], b"{\"name\":\"Alice\",\"age\":30}");
 }
 
-#[derive(Serialize)]
+#[derive(IntoSerializer)]
 struct Point(i32, i32);
 
 #[test]
@@ -70,7 +70,7 @@ fn test_derive_tuple_struct() {
     assert_eq!(&bytes[..], b"{\"0\":10,\"1\":20}");
 }
 
-#[derive(Serialize)]
+#[derive(IntoSerializer)]
 struct EmptyStruct {}
 
 #[test]
@@ -80,7 +80,7 @@ fn test_derive_empty_struct() {
     assert_eq!(&bytes[..], b"{}");
 }
 
-#[derive(Serialize)]
+#[derive(IntoSerializer)]
 enum Color {
     Red,
     Green,
@@ -94,7 +94,7 @@ fn test_derive_simple_enum() {
     assert_eq!(&bytes[..], b"[red]");
 }
 
-#[derive(Serialize)]
+#[derive(IntoSerializer)]
 enum Status {
     Active,
     Inactive(bool),
@@ -107,7 +107,7 @@ fn test_derive_enum_with_data() {
     assert_eq!(&bytes[..], b"[[null]]");
 }
 
-#[derive(Serialize)]
+#[derive(IntoSerializer)]
 struct PersonWithOptional {
     name: String,
     #[stream(skip_serialize_if = "|v: &String| v.is_empty()")]
@@ -214,7 +214,7 @@ fn test_deeply_nested_struct() {
     );
 }
 
-#[derive(Serialize)]
+#[derive(IntoSerializer)]
 struct TupleStructMultiple(i32, String, bool, f64);
 
 #[test]
@@ -227,7 +227,7 @@ fn test_tuple_struct_multiple_fields() {
     );
 }
 
-#[derive(Serialize)]
+#[derive(IntoSerializer)]
 struct UnitStruct;
 
 #[test]
@@ -237,7 +237,7 @@ fn test_unit_struct() {
     assert_eq!(&bytes[..], b"{}");
 }
 
-#[derive(Serialize)]
+#[derive(IntoSerializer)]
 struct NewtypeStruct(String);
 
 #[test]
@@ -247,7 +247,7 @@ fn test_newtype_struct() {
     assert_eq!(&bytes[..], b"{\"0\":\"wrapper\"}");
 }
 
-#[derive(Serialize)]
+#[derive(IntoSerializer)]
 enum MixedEnum {
     Unit,
     Tuple(i32, i32),
@@ -275,7 +275,7 @@ fn test_mixed_enum_named_variant() {
     assert_eq!(&bytes[..], b"[{\"x\":null,\"y\":null}]");
 }
 
-#[derive(Serialize)]
+#[derive(IntoSerializer)]
 enum RenamedEnum {
     #[stream(rename = "unit_variant")]
     Unit,
@@ -306,7 +306,7 @@ fn test_renamed_enum_named_variant() {
     assert_eq!(&bytes[..], b"[{\"named_variant\":null}]");
 }
 
-#[derive(Serialize)]
+#[derive(IntoSerializer)]
 enum ComplexEnum {
     Empty {},
     SingleUnnamed(String),
@@ -365,7 +365,7 @@ fn test_complex_enum_multiple_named() {
     );
 }
 
-#[derive(Serialize)]
+#[derive(IntoSerializer)]
 struct MixedStruct {
     string_field: String,
     #[stream(rename = "int_field")]
@@ -405,7 +405,7 @@ fn test_mixed_struct_with_mixed_attributes_included() {
     );
 }
 
-#[derive(Serialize)]
+#[derive(IntoSerializer)]
 struct AllIntegerTypes {
     i8_field: i8,
     i16_field: i16,
@@ -436,7 +436,7 @@ fn test_all_integer_types() {
     );
 }
 
-#[derive(Serialize)]
+#[derive(IntoSerializer)]
 struct AllFloatTypes {
     f32_field: f32,
     f64_field: f64,
@@ -452,7 +452,7 @@ fn test_all_float_types() {
     assert_eq!(&bytes[..], b"{\"f32_field\":1.5,\"f64_field\":2.25}");
 }
 
-#[derive(Serialize)]
+#[derive(IntoSerializer)]
 struct BoolFields {
     true_field: bool,
     false_field: bool,
@@ -468,7 +468,7 @@ fn test_bool_fields() {
     assert_eq!(&bytes[..], b"{\"true_field\":true,\"false_field\":false}");
 }
 
-#[derive(Serialize)]
+#[derive(IntoSerializer)]
 struct StringFields {
     empty: String,
     with_content: String,
@@ -489,7 +489,7 @@ fn test_string_fields() {
     );
 }
 
-#[derive(Serialize)]
+#[derive(IntoSerializer)]
 enum EnumWithRenamedFields {
     Named {
         #[stream(rename = "renamed_field")]
@@ -504,7 +504,7 @@ fn test_enum_with_renamed_fields() {
     assert_eq!(&bytes[..], b"[{\"renamed_field\":null}]");
 }
 
-#[derive(Serialize)]
+#[derive(IntoSerializer)]
 struct TupleStructWithSkip {
     field0: String,
     #[stream(skip_serialize_if = "|v: &String| v.is_empty()")]
@@ -537,7 +537,7 @@ fn test_tuple_struct_with_skip_none_empty() {
     );
 }
 
-#[derive(Serialize)]
+#[derive(IntoSerializer)]
 enum ThreeElements {
     First,
     Second,
@@ -565,7 +565,7 @@ fn test_three_element_enum_third() {
     assert_eq!(&bytes[..], b"[third]");
 }
 
-#[derive(Serialize)]
+#[derive(IntoSerializer)]
 struct SingleFieldStruct {
     value: i32,
 }
@@ -577,7 +577,7 @@ fn test_single_field_struct() {
     assert_eq!(&bytes[..], b"{\"value\":42}");
 }
 
-#[derive(Serialize)]
+#[derive(IntoSerializer)]
 enum SingleVariantEnum {
     Only { value: i32 },
 }
@@ -589,7 +589,7 @@ fn test_single_variant_enum() {
     assert_eq!(&bytes[..], b"[{\"value\":null}]");
 }
 
-#[derive(Serialize)]
+#[derive(IntoSerializer)]
 struct VecWrapper {
     name: String,
     items: Vec<i32>,
@@ -605,7 +605,7 @@ fn test_vec_wrapper_struct() {
     assert_eq!(&bytes[..], b"{\"name\":\"list\",\"items\":[1,2,3]}");
 }
 
-#[derive(Serialize)]
+#[derive(IntoSerializer)]
 struct OptionWrapper {
     name: String,
     value: Option<i32>,
@@ -631,7 +631,7 @@ fn test_option_wrapper_none() {
     assert_eq!(&bytes[..], b"{\"name\":\"opt\",\"value\":null}");
 }
 
-#[derive(Serialize)]
+#[derive(IntoSerializer)]
 struct BoxWrapper {
     value: Box<i32>,
 }
@@ -643,7 +643,7 @@ fn test_box_wrapper() {
     assert_eq!(&bytes[..], b"{\"value\":7}");
 }
 
-#[derive(Serialize)]
+#[derive(IntoSerializer)]
 struct SkipWithCondition {
     name: String,
     #[stream(skip_serialize_if = "|v: &String| v.len() < 3")]
@@ -676,7 +676,7 @@ fn test_skip_with_condition_long() {
     );
 }
 
-#[derive(Serialize)]
+#[derive(IntoSerializer)]
 struct DropCheckStruct {
     a: DropCheckA,
     b: DropCheckB,
@@ -770,7 +770,7 @@ fn test_previous_field_serializer_dropped_before_next_field() {
     assert_eq!(&bytes[..], b"{\"a\":1,\"b\":2}");
 }
 
-#[derive(Serialize)]
+#[derive(IntoSerializer)]
 struct SeparateAttrsOnDifferentFields {
     #[stream(rename = "renamed_field")]
     field_a: String,
@@ -804,7 +804,7 @@ fn test_separate_attrs_on_different_fields_renamed_included() {
     );
 }
 
-#[derive(Serialize)]
+#[derive(IntoSerializer)]
 struct SeparateAttrsOnSameField {
     #[stream(rename = "custom_name")]
     #[stream(skip_serialize_if = "|v: &String| v.is_empty()")]
@@ -829,7 +829,7 @@ fn test_separate_attrs_on_same_field_included() {
     assert_eq!(&bytes[..], b"{\"custom_name\":\"visible\"}");
 }
 
-#[derive(Serialize)]
+#[derive(IntoSerializer)]
 struct CombinedAttrSameField {
     #[stream(rename = "renamed", skip_serialize_if = "|v: &String| v.is_empty()")]
     field: String,
@@ -853,7 +853,7 @@ fn test_combined_attr_same_field_included() {
     assert_eq!(&bytes[..], b"{\"renamed\":\"visible\"}");
 }
 
-#[derive(Serialize)]
+#[derive(IntoSerializer)]
 struct MixedBothAttrs {
     #[stream(rename = "renamed_a")]
     #[stream(skip_serialize_if = "|v: &String| v.is_empty()")]
@@ -899,7 +899,7 @@ fn test_mixed_both_attrs_both_included() {
     );
 }
 
-#[derive(Serialize)]
+#[derive(IntoSerializer)]
 struct IntFieldWithRenameAndSkip {
     #[stream(rename = "renamed_int", skip_serialize_if = "|v: &i32| *v == 0")]
     value: i32,
@@ -919,7 +919,7 @@ fn test_int_rename_and_skip_nonzero() {
     assert_eq!(&bytes[..], b"{\"renamed_int\":42}");
 }
 
-#[derive(Serialize)]
+#[derive(IntoSerializer)]
 enum EnumVariantWithRenameAndSkip {
     #[stream(rename = "renamed_variant", skip_serialize_if = "|_: &i32| false")]
     Named { value: i32 },
@@ -932,7 +932,7 @@ fn test_enum_variant_with_rename_and_skip() {
     assert_eq!(&bytes[..], b"[{\"renamed_variant\":null}]");
 }
 
-#[derive(Serialize)]
+#[derive(IntoSerializer)]
 struct UnitStructWrapper(String);
 
 #[test]
@@ -942,7 +942,7 @@ fn test_unit_struct_wrapper() {
     assert_eq!(&bytes[..], b"{\"0\":\"hello\"}");
 }
 
-#[derive(Serialize)]
+#[derive(IntoSerializer)]
 struct UnitStructWrapperMulti(String, i32);
 
 #[test]
@@ -952,7 +952,7 @@ fn test_unit_struct_wrapper_multi() {
     assert_eq!(&bytes[..], b"{\"0\":\"hello\",\"1\":42}");
 }
 
-#[derive(Serialize)]
+#[derive(IntoSerializer)]
 struct UnitStructWrapperWithRename {
     #[stream(rename = "wrapped")]
     inner: UnitStructWrapper,

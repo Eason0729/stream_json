@@ -10,7 +10,7 @@
 //! - **Streaming**: Serializes data in chunks (128KB default) to avoid memory
 //!   exhaustion.
 //! - **Token-based**: [`Token`] enum for structured serialization to JSON tokens.
-//! - **Derive macros**: `#[derive(Serialize)]` for structs and enums via
+//! - **Derive macros**: `#[derive(IntoSerializer)]` for structs and enums via
 //!   `stream-json-macros`.
 //!
 //! ## Quick Start
@@ -53,7 +53,7 @@
 //! // └── VecSerializer          Vec<T>
 //! //
 //! // stream-json-macros
-//! // └── #[derive(Serialize)]  struct/enum derive
+//! // └── #[derive(IntoSerializer)]  struct/enum derive
 //! ```
 //!
 //! ## Serializers Module
@@ -113,7 +113,7 @@ pub use serde::{
     Token, TokenSerializer,
 };
 
-pub use stream_json_macros::Serialize;
+pub use stream_json_macros::IntoSerializer;
 
 #[cfg(feature = "base64")]
 pub use base64_embed::Base64EmbedFile;
