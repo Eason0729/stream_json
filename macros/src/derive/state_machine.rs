@@ -9,17 +9,33 @@ use super::shared::{
     generate_into_serializer_arm, generate_serializer_struct,
 };
 
+fn escaped_string_size(s: &str) -> usize {
+    s.chars()
+        .map(|c| match c {
+            '"' | '\\' | '\n' | '\r' | '\t' => 2,
+            c if c.is_control() => 6,
+            c => c.len_utf8(),
+        })
+        .sum()
+}
+
 pub fn build_struct(name: &Ident, fields: &Fields) -> TokenStream {
     let (field_infos, keys_array) = generate_field_keys(fields, name.clone());
     let field_count = field_infos.len();
+    let state_name = state_name(name);
+    let serializer_name = serializer_name(name);
 
     if field_count == 0 {
-        let serializer_name = serializer_name(name);
         return quote! {
             impl crate::serde::IntoSerializer for #name {
                 type S = #serializer_name;
+
                 fn into_serializer(self) -> Self::S {
                     #serializer_name { emitted: false }
+                }
+
+                fn size(&self) -> Option<usize> {
+                    Some(2)
                 }
             }
 
@@ -42,96 +58,105 @@ pub fn build_struct(name: &Ident, fields: &Fields) -> TokenStream {
         };
     }
 
-    let into_serializer_arm = generate_into_serializer_arm(name, fields, &field_infos, &keys_array);
+    let size_body = if field_count == 0 {
+        quote! { Some(2) }
+    } else {
+        let mut parts = Vec::new();
+        for fi in &field_infos {
+            let field_value = match fields {
+                Fields::Named(_) => {
+                    let ident = fi.ident.as_ref().expect("named field");
+                    quote! { &self.#ident }
+                }
+                Fields::Unnamed(_) => {
+                    let idx = syn::Index::from(fi.index);
+                    quote! { &self.#idx }
+                }
+                Fields::Unit => quote! { &() },
+            };
+            let include = if let Some(skip_expr) = &fi.skip_serialize_if {
+                quote! { !(#skip_expr)(#field_value) }
+            } else {
+                quote! { true }
+            };
+            let key_size = fi.key_size;
+            parts.push(quote! {
+                if #include {
+                    let field_size = match crate::serde::IntoSerializer::size(#field_value) {
+                        Some(size) => size,
+                        None => return None,
+                    };
+                    if !first {
+                        total += 1;
+                    }
+                    total += #key_size + field_size;
+                    first = false;
+                }
+            });
+        }
+        quote! {
+            let mut total = 2usize;
+            let mut first = true;
+            #(#parts)*
+            Some(total)
+        }
+    };
+
+    let into_serializer_arm =
+        generate_into_serializer_arm(name, fields, &field_infos, &keys_array, Some(&size_body));
     let (serializer_struct, unpin_impl) = generate_serializer_struct(name, fields, &field_infos);
-
-    let state_name = state_name(name);
-    let serializer_name = serializer_name(name);
-
     let emit_key_arms = generate_emit_key_arms(name, &field_infos);
     let emit_value_arms = generate_emit_value_arms(name, &field_infos, field_count);
-
-    let state_enum = if field_count == 0 {
-        quote! {
-            enum #state_name {
-                Start,
-                Done,
-            }
-        }
-    } else {
-        quote! {
-            enum #state_name {
-                Start,
-                EmitKey,
-                EmitValue,
-                EmitComma,
-                ClosingBrace,
-                Done,
-            }
-        }
-    };
-
-    let poll_match_arms = if field_count == 0 {
-        quote! {
-            #state_name::Start => {
-                self.state = #state_name::Done;
-                return std::task::Poll::Ready(Some(Ok(bytes::Bytes::from_static(b"{}"))));
-            }
-        }
-    } else {
-        quote! {
-            #state_name::Start => {
-                if #field_count == 0 {
-                    self.state = #state_name::ClosingBrace;
-                } else {
-                    self.state = #state_name::EmitKey;
-                }
-                return std::task::Poll::Ready(Some(Ok(bytes::Bytes::from_static(b"{"))));
-            }
-            #state_name::EmitKey => {
-                match self.field_idx {
-                    #(#emit_key_arms)*
-                    _ => {
-                        self.state = #state_name::ClosingBrace;
-                        continue;
-                    }
-                }
-            }
-            #state_name::EmitValue => {
-                match self.field_idx {
-                    #(#emit_value_arms)*
-                    _ => {
-                        self.state = #state_name::ClosingBrace;
-                        continue;
-                    }
-                }
-            }
-            #state_name::EmitComma => {
-                self.state = #state_name::EmitKey;
-                return std::task::Poll::Ready(Some(Ok(bytes::Bytes::from_static(b","))));
-            }
-            #state_name::ClosingBrace => {
-                self.state = #state_name::Done;
-                return std::task::Poll::Ready(Some(Ok(bytes::Bytes::from_static(b"}"))));
-            }
-        }
-    };
 
     quote! {
         #into_serializer_arm
 
         #serializer_struct
 
-        #state_enum
+        enum #state_name {
+            Start,
+            EmitKey,
+            EmitValue,
+            EmitComma,
+            ClosingBrace,
+            Done,
+        }
 
         impl crate::serde::Serializer for #serializer_name {
             fn poll(&mut self, cx: &mut std::task::Context<'_>) -> std::task::Poll<Option<Result<bytes::Bytes, crate::error::Error>>> {
                 loop {
                     match &mut self.state {
-                        #poll_match_arms
-                        #state_name::Done => {
-                            return std::task::Poll::Ready(None);
+                        #state_name::Start => {
+                            self.state = #state_name::EmitKey;
+                            return std::task::Poll::Ready(Some(Ok(bytes::Bytes::from_static(b"{"))));
                         }
+                        #state_name::EmitKey => {
+                            match self.field_idx {
+                                #(#emit_key_arms)*
+                                _ => {
+                                    self.state = #state_name::ClosingBrace;
+                                    continue;
+                                }
+                            }
+                        }
+                        #state_name::EmitValue => {
+                            match self.field_idx {
+                                #(#emit_value_arms)*
+                                _ => {
+                                    self.state = #state_name::ClosingBrace;
+                                    continue;
+                                }
+                            }
+                        }
+                        #state_name::EmitComma => {
+                            self.state = #state_name::EmitKey;
+                            return std::task::Poll::Ready(Some(Ok(bytes::Bytes::from_static(b","))));
+                        }
+                        #state_name::ClosingBrace => {
+                            self.state = #state_name::Done;
+                            return std::task::Poll::Ready(Some(Ok(bytes::Bytes::from_static(b"}"))));
+                        }
+                        #state_name::Done => return std::task::Poll::Ready(None),
                     }
                 }
             }
@@ -352,6 +377,86 @@ pub fn build_enum(
         })
         .collect();
 
+    let size_arms: Vec<_> = variants
+        .iter()
+        .map(|variant| {
+            let ident = &variant.ident;
+            match &variant.fields {
+                Fields::Unit => {
+                    let variant_rename = get_variant_rename(variant);
+                    let size = if let Some(rename) = variant_rename {
+                        rename.len() + 2
+                    } else {
+                        ident.to_string().to_lowercase().len()
+                    };
+                    quote! { #name::#ident => Some(#size), }
+                }
+                Fields::Unnamed(fields) => {
+                    let count = fields.unnamed.len();
+                    let variant_rename = get_variant_rename(variant);
+                    let size = if count == 0 {
+                        if let Some(rename) = variant_rename {
+                            rename.len() + 2
+                        } else {
+                            4
+                        }
+                    } else if variant_rename.is_some() {
+                        2 + count * 4 + 2
+                    } else {
+                        2 + count * 4
+                    };
+                    quote! { #name::#ident(..) => Some(#size), }
+                }
+                Fields::Named(fields) => {
+                    let count = fields.named.len();
+                    let variant_rename = get_variant_rename(variant);
+                    let keys: Vec<_> = if count == 1 {
+                        if let Some(rename) = variant_rename.clone() {
+                            vec![rename]
+                        } else {
+                            fields
+                                .named
+                                .iter()
+                                .map(|f| {
+                                    get_field_rename(f).unwrap_or_else(|| {
+                                        f.ident.as_ref().expect("named field has ident").to_string()
+                                    })
+                                })
+                                .collect()
+                        }
+                    } else {
+                        fields
+                            .named
+                            .iter()
+                            .map(|f| {
+                                get_field_rename(f).unwrap_or_else(|| {
+                                    f.ident.as_ref().expect("named field has ident").to_string()
+                                })
+                            })
+                            .collect()
+                    };
+                    let size = if count == 0 {
+                        if let Some(rename) = variant_rename {
+                            rename.len() + 2
+                        } else {
+                            4
+                        }
+                    } else {
+                        let mut total = 4usize;
+                        for (idx, key) in keys.iter().enumerate() {
+                            if idx > 0 {
+                                total += 1;
+                            }
+                            total += escaped_string_size(key) + 3 + 4;
+                        }
+                        total
+                    };
+                    quote! { #name::#ident { .. } => Some(#size), }
+                }
+            }
+        })
+        .collect();
+
     quote! {
         impl crate::serde::IntoSerializer for #name {
             type S = #serializer_name;
@@ -364,6 +469,12 @@ pub fn build_enum(
                     variant_idx,
                     state: #state_name::Start,
                     emit_pos: 0,
+                }
+            }
+
+            fn size(&self) -> Option<usize> {
+                match self {
+                    #(#size_arms)*
                 }
             }
         }

@@ -56,6 +56,10 @@ macro_rules! impl_into_serializer_cast {
             fn into_serializer(self) -> Self::S {
                 <$serializer>::new($cast(self))
             }
+
+            fn size(&self) -> Option<usize> {
+                Some(($cast(*self)).to_string().len())
+            }
         }
     };
 }
@@ -106,6 +110,10 @@ impl IntoSerializer for () {
     fn into_serializer(self) -> Self::S {
         UnitSerializer::new()
     }
+
+    fn size(&self) -> Option<usize> {
+        Some(4)
+    }
 }
 
 /// Serializer for boolean values.
@@ -145,6 +153,10 @@ impl IntoSerializer for bool {
     fn into_serializer(self) -> Self::S {
         BoolSerializerState::new(self)
     }
+
+    fn size(&self) -> Option<usize> {
+        Some(if *self { 4 } else { 5 })
+    }
 }
 
 /// Serializer for signed 64-bit integers.
@@ -183,6 +195,10 @@ impl IntoSerializer for i64 {
     type S = I64Serializer;
     fn into_serializer(self) -> Self::S {
         I64Serializer::new(self)
+    }
+
+    fn size(&self) -> Option<usize> {
+        Some(self.to_string().len())
     }
 }
 
@@ -226,6 +242,10 @@ impl IntoSerializer for u64 {
     type S = U64Serializer;
     fn into_serializer(self) -> Self::S {
         U64Serializer::new(self)
+    }
+
+    fn size(&self) -> Option<usize> {
+        Some(self.to_string().len())
     }
 }
 
@@ -275,6 +295,14 @@ impl IntoSerializer for f64 {
     fn into_serializer(self) -> Self::S {
         F64Serializer::new(self)
     }
+
+    fn size(&self) -> Option<usize> {
+        Some(if self.is_nan() || self.is_infinite() {
+            4
+        } else {
+            self.to_string().len()
+        })
+    }
 }
 
 impl_into_serializer_cast!(f32, F64Serializer, |value: f32| value as f64);
@@ -284,12 +312,20 @@ impl IntoSerializer for std::net::IpAddr {
     fn into_serializer(self) -> Self::S {
         StringSerializer::new(self.to_string())
     }
+
+    fn size(&self) -> Option<usize> {
+        Some(crate::serde::escaped_string_size(&self.to_string()) + 2)
+    }
 }
 
 impl IntoSerializer for std::net::SocketAddr {
     type S = StringSerializer;
     fn into_serializer(self) -> Self::S {
         StringSerializer::new(self.to_string())
+    }
+
+    fn size(&self) -> Option<usize> {
+        Some(crate::serde::escaped_string_size(&self.to_string()) + 2)
     }
 }
 
@@ -298,12 +334,21 @@ impl IntoSerializer for std::path::PathBuf {
     fn into_serializer(self) -> Self::S {
         StringSerializer::new(self.to_string_lossy().into_owned())
     }
+
+    fn size(&self) -> Option<usize> {
+        let s = self.to_string_lossy();
+        Some(crate::serde::escaped_string_size(&s) + 2)
+    }
 }
 
 impl IntoSerializer for std::time::Duration {
     type S = U64Serializer;
     fn into_serializer(self) -> Self::S {
         U64Serializer::new(self.as_secs())
+    }
+
+    fn size(&self) -> Option<usize> {
+        Some(self.as_secs().to_string().len())
     }
 }
 
@@ -314,6 +359,13 @@ impl IntoSerializer for std::time::SystemTime {
             .duration_since(std::time::UNIX_EPOCH)
             .unwrap_or_default();
         StringSerializer::new(dur.as_secs_f64().to_string())
+    }
+
+    fn size(&self) -> Option<usize> {
+        let dur = self
+            .duration_since(std::time::UNIX_EPOCH)
+            .unwrap_or_default();
+        Some(crate::serde::escaped_string_size(&dur.as_secs_f64().to_string()) + 2)
     }
 }
 
@@ -358,6 +410,13 @@ where
     fn into_serializer(self) -> Self::S {
         OptionSerializer::new(self)
     }
+
+    fn size(&self) -> Option<usize> {
+        match self {
+            Some(value) => value.size(),
+            None => Some(4),
+        }
+    }
 }
 
 pub struct BoxSerializer<T: IntoSerializer> {
@@ -392,6 +451,10 @@ where
     fn into_serializer(self) -> Self::S {
         BoxSerializer::new(self)
     }
+
+    fn size(&self) -> Option<usize> {
+        (**self).size()
+    }
 }
 
 impl IntoSerializer for std::net::Ipv4Addr {
@@ -399,12 +462,20 @@ impl IntoSerializer for std::net::Ipv4Addr {
     fn into_serializer(self) -> Self::S {
         StringSerializer::new(self.to_string())
     }
+
+    fn size(&self) -> Option<usize> {
+        Some(crate::serde::escaped_string_size(&self.to_string()) + 2)
+    }
 }
 
 impl IntoSerializer for std::net::Ipv6Addr {
     type S = StringSerializer;
     fn into_serializer(self) -> Self::S {
         StringSerializer::new(self.to_string())
+    }
+
+    fn size(&self) -> Option<usize> {
+        Some(crate::serde::escaped_string_size(&self.to_string()) + 2)
     }
 }
 
@@ -495,12 +566,20 @@ impl IntoSerializer for String {
     fn into_serializer(self) -> Self::S {
         StringSerializer::new(self)
     }
+
+    fn size(&self) -> Option<usize> {
+        Some(crate::serde::escaped_string_size(self) + 2)
+    }
 }
 
 impl IntoSerializer for &str {
     type S = StringSerializer;
     fn into_serializer(self) -> Self::S {
         StringSerializer::new(self.to_string())
+    }
+
+    fn size(&self) -> Option<usize> {
+        Some(crate::serde::escaped_string_size(self) + 2)
     }
 }
 
@@ -598,6 +677,17 @@ where
     type S = VecSerializer<T>;
     fn into_serializer(self) -> Self::S {
         VecSerializer::new(self)
+    }
+
+    fn size(&self) -> Option<usize> {
+        let mut total = 2;
+        for (idx, item) in self.iter().enumerate() {
+            total += item.size()?;
+            if idx + 1 < self.len() {
+                total += 1;
+            }
+        }
+        Some(total)
     }
 }
 

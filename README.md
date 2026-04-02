@@ -1,57 +1,61 @@
 # stream-json
 
-A **streaming, async-only** JSON serialization framework for Rust. Designed to handle strings up to 1TB without loading into memory.
+A streaming, async-only JSON serialization framework for Rust.
 
 ## Features
 
-- **Async-first**: No sync serialization. Uses `poll` interface for integration with `futures`.
-- **Streaming**: Serializes data in chunks (128KB default) to avoid memory exhaustion.
-- **Derive macros**: `#[derive(Serialize)]` for structs and enums.
-- **No heap stress**: Large strings are chunked and streamed, not buffered.
+- Async-first `poll`-based serialization
+- Streaming output in chunks
+- Exact `size()` queries for supported values
+- `#[derive(IntoSerializer)]` for structs and enums
+
+## Size Queries
+
+`IntoSerializer::size()` returns the exact serialized byte size when known.
+Use it when you need a `Content-Length`-style value before streaming.
+
+Examples:
+
+```rust
+use stream_json::serde::IntoSerializer;
+
+assert_eq!("hello".size(), Some(7));
+assert_eq!((42i64).size(), Some(2));
+```
+
+If a value cannot report its size, the default implementation returns `None`.
+
+## Base64 Embed
+
+`Base64EmbedFile::new(reader, expected_size).await` now validates the provided
+size and preloads the first bytes needed for MIME detection.
+
+```rust
+use futures::io::Cursor;
+use stream_json::Base64EmbedFile;
+
+# async fn demo() -> Result<(), stream_json::Error> {
+let embed = Base64EmbedFile::new(Cursor::new(vec![0u8; 16]), 16).await?;
+assert!(embed.size().is_some());
+# Ok(())
+# }
+```
 
 ## Usage
 
 ```rust
-use std::task::{Context, Poll};
-use bytes::Bytes;
-use futures::io::Cursor;
-use stream_json::serde::{Serialize, Serializer};
-use stream_json::base64_embed::Base64EmbedFile;
+use stream_json::serde::IntoSerializer;
 
-#[derive(Serialize)]
+#[derive(IntoSerializer)]
 struct Person {
-    #[stream(rename = "user_name")]
     name: String,
-    #[stream(skip_serialize_if = "String::is_empty")]
-    nickname: String,
-    avatar: Base64EmbedFile,
+    age: i32,
 }
 
-#[derive(Serialize)]
-enum Event {
-    #[stream(rename = "click")]
-    Click { x: f64, y: f64 },
-    #[stream(rename = "key_press")]
-    KeyPress(String),
-    #[stream(rename = "idle")]
-    Idle,
-}
+let person = Person {
+    name: "Alice".to_string(),
+    age: 30,
+};
 
-async fn example() {
-    let avatar_data = vec![0x89, 0x50, 0x4E, 0x47];
-    let avatar = Base64EmbedFile::new(Cursor::new(avatar_data));
-
-    let person = Person {
-        name: "Alice".to_string(),
-        nickname: "".to_string(),
-        avatar,
-    };
-
-    let ser = person.into_serializer();
-    let mut ser = Box::pin(ser);
-
-    while let Poll::Ready(Some(Ok(chunk))) = ser.as_mut().poll(&mut Context::empty()) {
-        println!("{:?}", chunk);
-    }
-}
+assert_eq!(person.size(), Some(25));
 ```

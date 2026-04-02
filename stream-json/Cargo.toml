@@ -20,4 +20,4 @@ stream-json-macros = { path = "../macros" }
 
 [dev-dependencies]
 tokio = { version = "1", features = ["io-util", "fs"] }
-futures = { version = "0.3", features = ["io-compat"] }
+futures = { version = "0.3", features = ["io-compat", "executor"] }

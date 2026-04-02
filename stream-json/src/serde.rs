@@ -139,6 +139,8 @@ pub trait Serializer {
 ///
 /// This trait is implemented for all primitive types (`bool`, `i64`, `u64`,
 /// `f64`, `String`, `&str`) and `Vec<T>` where `T: IntoSerializer`.
+/// It also exposes [`IntoSerializer::size`], which returns the exact serialized
+/// byte size when known.
 ///
 /// # Example
 ///
@@ -160,6 +162,13 @@ pub trait IntoSerializer {
 
     /// Converts this value into a serializer.
     fn into_serializer(self) -> Self::S;
+
+    /// Returns the exact serialized byte size when known.
+    ///
+    /// Returns `None` if unknown.
+    fn size(&self) -> Option<usize> {
+        None
+    }
 
     /// Converts this value into a stream of bytes.
     ///
@@ -310,6 +319,10 @@ impl<'a> IntoSerializer for &'a [Token<'a>] {
     fn into_serializer(self) -> Self::S {
         TokenSerializer::new(self)
     }
+
+    fn size(&self) -> Option<usize> {
+        Some(self.iter().map(token_size).sum())
+    }
 }
 
 /// Escapes a string for JSON serialization.
@@ -329,6 +342,42 @@ pub(crate) fn escape_string(s: &str) -> String {
         }
     }
     result
+}
+
+/// Returns the exact number of bytes required to escape a JSON string.
+pub(crate) fn escaped_string_size(s: &str) -> usize {
+    s.chars()
+        .map(|c| match c {
+            '"' | '\\' | '\n' | '\r' | '\t' => 2,
+            c if c.is_control() => 6,
+            c => c.len_utf8(),
+        })
+        .sum()
+}
+
+fn token_size(token: &Token<'_>) -> usize {
+    match token {
+        Token::Null => 4,
+        Token::Bool(true) => 4,
+        Token::Bool(false) => 5,
+        Token::I64(n) => n.to_string().len(),
+        Token::U64(n) => n.to_string().len(),
+        Token::F64(n) => {
+            if n.is_nan() || n.is_infinite() {
+                4
+            } else {
+                n.to_string().len()
+            }
+        }
+        Token::String(s) => escaped_string_size(s) + 2,
+        Token::StartArray
+        | Token::EndArray
+        | Token::StartObject
+        | Token::EndObject
+        | Token::Comma
+        | Token::Colon => 1,
+        Token::Key(k) => escaped_string_size(k) + 3,
+    }
 }
 
 /// State wrapper for struct fields during serialization.

@@ -11,6 +11,21 @@ pub struct FieldInfo {
     pub ty: Type,
     pub skip_serialize_if: Option<TokenStream>,
     pub key_bytes: TokenStream,
+    pub key_size: usize,
+}
+
+fn escaped_string_size(s: &str) -> usize {
+    s.chars()
+        .map(|c| match c {
+            '"' | '\\' | '\n' | '\r' | '\t' => 2,
+            c if c.is_control() => 6,
+            c => c.len_utf8(),
+        })
+        .sum()
+}
+
+fn key_size(key: &str) -> usize {
+    escaped_string_size(key) + 3
 }
 
 pub fn generate_field_keys(fields: &Fields, _span: Ident) -> (Vec<FieldInfo>, TokenStream) {
@@ -30,6 +45,7 @@ pub fn generate_field_keys(fields: &Fields, _span: Ident) -> (Vec<FieldInfo>, To
                         ty: f.ty.clone(),
                         skip_serialize_if: super::super::attributes::get_skip_serialize_if(f),
                         key_bytes: quote! { bytes::Bytes::from(#key_str) },
+                        key_size: key_size(&key),
                     }
                 })
                 .collect();
@@ -51,6 +67,7 @@ pub fn generate_field_keys(fields: &Fields, _span: Ident) -> (Vec<FieldInfo>, To
                             &fields.unnamed[i],
                         ),
                         key_bytes: quote! { bytes::Bytes::from(#key_str) },
+                        key_size: key_size(&i.to_string()),
                     }
                 })
                 .collect();
@@ -191,10 +208,14 @@ pub fn generate_into_serializer_arm(
     fields: &Fields,
     field_infos: &[FieldInfo],
     keys_array: &TokenStream,
+    size_body: Option<&TokenStream>,
 ) -> TokenStream {
     let serializer_name = serializer_name(name);
     let state_name = state_name(name);
     let (_, field_inits) = generate_field_defs_and_inits(name, fields, field_infos);
+    let size_impl = size_body
+        .map(|body| quote! { fn size(&self) -> Option<usize> { #body } })
+        .unwrap_or_else(|| quote! {});
 
     quote! {
         impl crate::serde::IntoSerializer for #name {
@@ -207,6 +228,8 @@ pub fn generate_into_serializer_arm(
                     state: #state_name::Start,
                 }
             }
+
+            #size_impl
         }
     }
 }

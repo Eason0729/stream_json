@@ -31,7 +31,8 @@ fn basic_base64_embed_png_magic_bytes() {
         0x52,
     ];
     let cursor = Cursor::new(png_header);
-    let ser = Base64EmbedFile::new(cursor);
+    let ser = futures::executor::block_on(Base64EmbedFile::new(cursor, 16)).unwrap();
+    assert_eq!(ser.size(), Some("data:image/png;base64,".len() + 24));
 
     let output = collect_bytes(ser);
     let output_str = String::from_utf8(output).unwrap();
@@ -48,7 +49,7 @@ fn basic_base64_embed_with_into_serializer() {
         0x52,
     ];
     let cursor = Cursor::new(png_header);
-    let embed = Base64EmbedFile::new(cursor);
+    let embed = futures::executor::block_on(Base64EmbedFile::new(cursor, 16)).unwrap();
     let ser = embed.into_serializer();
 
     let output = collect_bytes(ser);
@@ -61,7 +62,11 @@ fn basic_base64_embed_with_into_serializer() {
 fn basic_base64_embed_empty_data() {
     let data = Vec::new();
     let cursor = Cursor::new(data);
-    let ser = Base64EmbedFile::new(cursor);
+    let ser = futures::executor::block_on(Base64EmbedFile::new(cursor, 0)).unwrap();
+    assert_eq!(
+        ser.size(),
+        Some("data:application/octet-stream;base64,".len())
+    );
 
     let output = collect_bytes(ser);
     let output_str = String::from_utf8(output).unwrap();
@@ -97,7 +102,8 @@ mod memory_tests {
         assert_physical_memory_increases_by_at_least(0, || {
             let data = std::fs::read("testdata/large_image.png").expect("failed to read file");
             let cursor = Cursor::new(data);
-            let ser = Base64EmbedFile::new(cursor);
+            let ser = futures::executor::block_on(Base64EmbedFile::new(cursor, 10 * 1024 * 1024))
+                .unwrap();
 
             let output = collect_bytes(ser);
             std::hint::black_box(output)
@@ -121,7 +127,7 @@ fn openai_vision_request_with_base64_image() {
 
     let request = OpenAiRequest {
         model: "gpt-4o".to_string(),
-        image_data: Base64EmbedFile::new(cursor),
+        image_data: futures::executor::block_on(Base64EmbedFile::new(cursor, 16)).unwrap(),
     };
 
     let bytes = collect_bytes(request.into_serializer());

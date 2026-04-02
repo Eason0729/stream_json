@@ -56,6 +56,7 @@ fn test_derive_named_struct() {
         name: "Alice".to_string(),
         age: 30,
     };
+    assert_eq!(person.size(), Some(25));
     let bytes = super::collect_bytes(person.into_serializer());
     assert_eq!(&bytes[..], b"{\"name\":\"Alice\",\"age\":30}");
 }
@@ -122,6 +123,7 @@ fn test_skip_serialize_if_named_field_skipped() {
         nickname: "".to_string(),
         age: 30,
     };
+    assert_eq!(person.size(), Some(25));
     let bytes = super::collect_bytes(person.into_serializer());
     assert_eq!(&bytes[..], b"{\"name\":\"Alice\",\"age\":30}");
 }
@@ -133,6 +135,7 @@ fn test_skip_serialize_if_named_field_included() {
         nickname: "Ali".to_string(),
         age: 30,
     };
+    assert_eq!(person.size(), Some(42));
     let bytes = super::collect_bytes(person.into_serializer());
     assert_eq!(
         &bytes[..],

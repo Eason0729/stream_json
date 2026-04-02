@@ -9,6 +9,8 @@
 //!   with `futures`.
 //! - **Streaming**: Serializes data in chunks (128KB default) to avoid memory
 //!   exhaustion.
+//! - **Exact size queries**: Supported values can report their exact serialized
+//!   byte size via `IntoSerializer::size()`.
 //! - **Token-based**: [`Token`] enum for structured serialization to JSON tokens.
 //! - **Derive macros**: `#[derive(IntoSerializer)]` for structs and enums via
 //!   `stream-json-macros`.
@@ -29,6 +31,9 @@
 //! // Vec
 //! let serializer = vec![1, 2, 3].into_serializer();
 //! // serializer is VecSerializer<i32>
+//!
+//! // Exact size when known
+//! assert_eq!("hello".size(), Some(7));
 //! ```
 //!
 //! ## Architecture
@@ -82,6 +87,11 @@
 //!
 //! [`VecSerializer<T>`] serializes `Vec<T>` as JSON array. Each element is
 //! serialized via its own serializer, with proper comma handling.
+//!
+//! ## Size Queries
+//!
+//! `IntoSerializer::size()` can be used when you need an exact serialized byte
+//! length ahead of time, for example to set HTTP `Content-Length`.
 //!
 //! ## Token Module
 //!
