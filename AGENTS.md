@@ -1,4 +1,4 @@
-# This is a rust project
+# This is a rust serialization framework(serialization only)
 
 Follow general rules:
 1. Always check if it compile by `cargo check`(`--release` is usually unnecessary).

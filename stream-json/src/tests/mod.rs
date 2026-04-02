@@ -21,6 +21,9 @@ pub fn collect_bytes<S: Serializer + Unpin>(mut ser: S) -> Vec<u8> {
     result
 }
 
+#[cfg(target_os = "linux")]
+pub(super) mod memory;
+
 mod chunking;
 mod derive;
 mod primitives;
