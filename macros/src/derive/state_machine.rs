@@ -370,7 +370,6 @@ pub fn build_enum(
                             match &mut self.inner {
                                 #(#emit_arms)*
                             }
-                            continue;
                         }
                         #state_name::ClosingBracket => {
                             self.state = #state_name::Done;
