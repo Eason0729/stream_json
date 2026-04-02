@@ -176,9 +176,10 @@ pub fn build_enum(
                             return std::task::Poll::Ready(Some(Ok(bytes::Bytes::from_static(#rename_str.as_bytes()))));
                         }
                     } else {
+                        let variant_name = ident.to_string().to_lowercase();
                         quote! {
                             self.state = #state_name::ClosingBracket;
-                            return std::task::Poll::Ready(Some(Ok(bytes::Bytes::from_static(b"null"))));
+                            return std::task::Poll::Ready(Some(Ok(bytes::Bytes::from(#variant_name))));
                         }
                     }
                 }
@@ -246,12 +247,35 @@ pub fn build_enum(
                 }
                 Fields::Named(fields) => {
                     let count = fields.named.len();
-                    let keys: Vec<_> = fields.named.iter().map(|f| {
-                        get_field_rename(f).unwrap_or_else(|| f.ident.as_ref().expect("named field has ident").to_string())
-                    }).collect();
+                    let variant_rename = get_variant_rename(variant);
+                    let keys: Vec<_> = if count == 1 {
+                        if let Some(rename) = variant_rename.clone() {
+                            vec![rename]
+                        } else {
+                            fields
+                                .named
+                                .iter()
+                                .map(|f| {
+                                    get_field_rename(f).unwrap_or_else(|| {
+                                        f.ident.as_ref().expect("named field has ident").to_string()
+                                    })
+                                })
+                                .collect()
+                        }
+                    } else {
+                        fields
+                            .named
+                            .iter()
+                            .map(|f| {
+                                get_field_rename(f).unwrap_or_else(|| {
+                                    f.ident.as_ref().expect("named field has ident").to_string()
+                                })
+                            })
+                            .collect()
+                    };
                     let key_strings: Vec<String> = keys.iter().map(|k| format!("\"{}\":", k)).collect();
                     if count == 0 {
-                        if let Some(rename) = get_variant_rename(variant) {
+                        if let Some(rename) = variant_rename {
                             let rename_str = format!("\"{}\"", rename);
                             quote! {
                                 self.emit_pos = 0;

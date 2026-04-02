@@ -258,7 +258,7 @@ enum MixedEnum {
 fn test_mixed_enum_unit_variant() {
     let en = MixedEnum::Unit;
     let bytes = super::collect_bytes(en.into_serializer());
-    assert_eq!(&bytes[..], b"[null]");
+    assert_eq!(&bytes[..], b"[unit]");
 }
 
 #[test]
@@ -303,7 +303,7 @@ fn test_renamed_enum_tuple_variant() {
 fn test_renamed_enum_named_variant() {
     let en = RenamedEnum::Named { value: 99 };
     let bytes = super::collect_bytes(en.into_serializer());
-    assert_eq!(&bytes[..], b"[{\"value\":null}]");
+    assert_eq!(&bytes[..], b"[{\"named_variant\":null}]");
 }
 
 #[derive(Serialize)]
@@ -548,21 +548,21 @@ enum ThreeElements {
 fn test_three_element_enum_first() {
     let en = ThreeElements::First;
     let bytes = super::collect_bytes(en.into_serializer());
-    assert_eq!(&bytes[..], b"[null]");
+    assert_eq!(&bytes[..], b"[first]");
 }
 
 #[test]
 fn test_three_element_enum_second() {
     let en = ThreeElements::Second;
     let bytes = super::collect_bytes(en.into_serializer());
-    assert_eq!(&bytes[..], b"[null]");
+    assert_eq!(&bytes[..], b"[second]");
 }
 
 #[test]
 fn test_three_element_enum_third() {
     let en = ThreeElements::Third;
     let bytes = super::collect_bytes(en.into_serializer());
-    assert_eq!(&bytes[..], b"[null]");
+    assert_eq!(&bytes[..], b"[third]");
 }
 
 #[derive(Serialize)]
