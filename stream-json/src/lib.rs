@@ -133,10 +133,7 @@ pub mod serializers {
     //! let ser = StringSerializer::new("hello".to_string());
     //! ```
 
-    pub use super::std_impl::{
-        BoolSerializerState, F64Serializer, I64Serializer, StringSerializer, U64Serializer,
-        UnitSerializer, VecSerializer,
-    };
+    pub use super::std_impl::*;
 
     #[cfg(feature = "base64")]
     pub use super::base64_embed::Base64EmbedFile;

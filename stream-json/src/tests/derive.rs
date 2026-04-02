@@ -91,7 +91,7 @@ enum Color {
 fn test_derive_simple_enum() {
     let color = Color::Red;
     let bytes = super::collect_bytes(color.into_serializer());
-    assert_eq!(&bytes[..], b"[null]");
+    assert_eq!(&bytes[..], b"[red]");
 }
 
 #[derive(Serialize)]

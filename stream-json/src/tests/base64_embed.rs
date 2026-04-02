@@ -4,7 +4,8 @@ use futures_core::task::Poll;
 
 use crate::base64_embed::Base64EmbedFile;
 use crate::error::Error;
-use crate::serde::Serializer;
+use crate::serde::{IntoSerializer, Serializer};
+use stream_json_macros::Serialize;
 
 fn poll_next<S: Serializer + Unpin>(ser: &mut S) -> Option<Result<Bytes, Error>> {
     let waker = std::task::Waker::noop();
@@ -102,4 +103,30 @@ mod memory_tests {
             std::hint::black_box(output)
         });
     }
+}
+
+#[derive(Serialize)]
+struct OpenAiRequest {
+    model: String,
+    image_data: Base64EmbedFile<Cursor<Vec<u8>>>,
+}
+
+#[test]
+fn openai_vision_request_with_base64_image() {
+    let png_header = vec![
+        0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A, 0x00, 0x00, 0x00, 0x0D, 0x49, 0x48, 0x44,
+        0x52,
+    ];
+    let cursor = Cursor::new(png_header);
+
+    let request = OpenAiRequest {
+        model: "gpt-4o".to_string(),
+        image_data: Base64EmbedFile::new(cursor),
+    };
+
+    let bytes = collect_bytes(request.into_serializer());
+    let output_str = String::from_utf8(bytes).unwrap();
+
+    assert!(output_str.starts_with(r#"{"model":"gpt-4o","image_data":"#));
+    assert!(output_str.contains("data:image/png;base64,"));
 }
