@@ -330,3 +330,49 @@ pub(crate) fn escape_string(s: &str) -> String {
     }
     result
 }
+
+/// State wrapper for struct fields during serialization.
+///
+/// This enum tracks whether a field value is still waiting, already converted
+/// to a serializer, or skipped by a predicate.
+pub enum FieldState<F: IntoSerializer> {
+    Waiting {
+        value: Option<F>,
+        skip_if: Option<Box<dyn Fn(&F) -> bool>>,
+    },
+    Active(<F as IntoSerializer>::S),
+    Skipped,
+}
+
+impl<F: IntoSerializer + Unpin> Serializer for FieldState<F> {
+    fn poll(&mut self, cx: &mut Context<'_>) -> Poll<Option<Result<Bytes, Error>>> {
+        if !self.prepare() {
+            return Poll::Ready(None);
+        }
+        match self {
+            FieldState::Active(s) => s.poll(cx),
+            FieldState::Waiting { .. } | FieldState::Skipped => Poll::Ready(None),
+        }
+    }
+}
+
+impl<F: IntoSerializer> FieldState<F> {
+    pub fn prepare(&mut self) -> bool {
+        match self {
+            FieldState::Waiting { value, skip_if } => {
+                let Some(v) = value.take() else {
+                    *self = FieldState::Skipped;
+                    return false;
+                };
+                if skip_if.as_ref().is_some_and(|pred| pred(&v)) {
+                    *self = FieldState::Skipped;
+                    return false;
+                }
+                *self = FieldState::Active(v.into_serializer());
+                true
+            }
+            FieldState::Active(_) => true,
+            FieldState::Skipped => false,
+        }
+    }
+}

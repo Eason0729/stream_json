@@ -1,4 +1,4 @@
-use macros::Serialize;
+use stream_json_macros::Serialize;
 
 use crate::serde::IntoSerializer;
 
@@ -63,4 +63,37 @@ fn test_derive_enum_with_data() {
     let status = Status::Inactive(true);
     let bytes = super::collect_bytes(status.into_serializer());
     assert_eq!(&bytes[..], b"[[null]]");
+}
+
+#[derive(Serialize)]
+struct PersonWithOptional {
+    name: String,
+    #[stream(skip_serialize_if = "|v: &String| v.is_empty()")]
+    nickname: String,
+    age: i32,
+}
+
+#[test]
+fn test_skip_serialize_if_named_field_skipped() {
+    let person = PersonWithOptional {
+        name: "Alice".to_string(),
+        nickname: "".to_string(),
+        age: 30,
+    };
+    let bytes = super::collect_bytes(person.into_serializer());
+    assert_eq!(&bytes[..], b"{\"name\":\"Alice\",\"age\":30}");
+}
+
+#[test]
+fn test_skip_serialize_if_named_field_included() {
+    let person = PersonWithOptional {
+        name: "Alice".to_string(),
+        nickname: "Ali".to_string(),
+        age: 30,
+    };
+    let bytes = super::collect_bytes(person.into_serializer());
+    assert_eq!(
+        &bytes[..],
+        b"{\"name\":\"Alice\",\"nickname\":\"Ali\",\"age\":30}"
+    );
 }

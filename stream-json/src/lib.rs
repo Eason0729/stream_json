@@ -110,7 +110,7 @@ pub use serde::{
     Token, TokenSerializer,
 };
 
-pub use macros::Serialize;
+pub use stream_json_macros::Serialize;
 
 pub mod serializers {
     //! Built-in serializers for primitive and standard library types.

@@ -8,4 +8,4 @@ bytes.workspace = true
 futures-core.workspace = true
 thiserror.workspace = true
 
-macros = { path = "../macros" }
+stream-json-macros = { path = "../macros" }
