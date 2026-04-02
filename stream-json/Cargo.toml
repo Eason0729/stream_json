@@ -3,9 +3,21 @@ name = "stream-json"
 version.workspace = true
 edition.workspace = true
 
+[features]
+default = []
+base64 = ["infer", "dep:base64", "dep:futures-io"]
+
 [dependencies]
 bytes.workspace = true
 futures-core.workspace = true
 thiserror.workspace = true
 
+infer = { version = "0.19", optional = true }
+base64 = { version = "0.22", optional = true }
+futures-io = { version = "0.3", optional = true }
+
 stream-json-macros = { path = "../macros" }
+
+[dev-dependencies]
+tokio = { version = "1", features = ["io-util", "fs"] }
+futures = { version = "0.3", features = ["io-compat"] }

@@ -101,6 +101,9 @@ pub mod error;
 pub mod serde;
 pub mod std_impl;
 
+#[cfg(feature = "base64")]
+pub mod base64_embed;
+
 #[cfg(test)]
 pub mod tests;
 
@@ -111,6 +114,9 @@ pub use serde::{
 };
 
 pub use stream_json_macros::Serialize;
+
+#[cfg(feature = "base64")]
+pub use base64_embed::Base64EmbedFile;
 
 pub mod serializers {
     //! Built-in serializers for primitive and standard library types.
@@ -131,4 +137,7 @@ pub mod serializers {
         BoolSerializerState, F64Serializer, I64Serializer, StringSerializer, U64Serializer,
         UnitSerializer, VecSerializer,
     };
+
+    #[cfg(feature = "base64")]
+    pub use super::base64_embed::Base64EmbedFile;
 }

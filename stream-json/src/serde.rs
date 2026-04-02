@@ -342,6 +342,7 @@ pub enum FieldState<F: IntoSerializer> {
     },
     Active(<F as IntoSerializer>::S),
     Skipped,
+    Dropped,
 }
 
 impl<F: IntoSerializer + Unpin> Serializer for FieldState<F> {
@@ -350,8 +351,16 @@ impl<F: IntoSerializer + Unpin> Serializer for FieldState<F> {
             return Poll::Ready(None);
         }
         match self {
-            FieldState::Active(s) => s.poll(cx),
-            FieldState::Waiting { .. } | FieldState::Skipped => Poll::Ready(None),
+            FieldState::Active(s) => {
+                let poll = s.poll(cx);
+                if matches!(poll, Poll::Ready(None)) {
+                    *self = FieldState::Dropped;
+                }
+                poll
+            }
+            FieldState::Waiting { .. } | FieldState::Skipped | FieldState::Dropped => {
+                Poll::Ready(None)
+            }
         }
     }
 }
@@ -372,7 +381,7 @@ impl<F: IntoSerializer> FieldState<F> {
                 true
             }
             FieldState::Active(_) => true,
-            FieldState::Skipped => false,
+            FieldState::Skipped | FieldState::Dropped => false,
         }
     }
 }

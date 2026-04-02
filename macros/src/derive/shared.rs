@@ -167,6 +167,7 @@ pub fn generate_emit_value_arms(
                             return std::task::Poll::Ready(Some(result));
                         }
                         std::task::Poll::Ready(None) => {
+                            self.#fname = crate::serde::FieldState::Dropped;
                             if self.field_idx + 1 < #field_count {
                                 self.field_idx += 1;
                                 self.state = #state_name::EmitComma;
