@@ -769,3 +769,200 @@ fn test_previous_field_serializer_dropped_before_next_field() {
     assert!(dropped.load(Ordering::SeqCst));
     assert_eq!(&bytes[..], b"{\"a\":1,\"b\":2}");
 }
+
+#[derive(Serialize)]
+struct SeparateAttrsOnDifferentFields {
+    #[stream(rename = "renamed_field")]
+    field_a: String,
+    #[stream(skip_serialize_if = "|v: &String| v.is_empty()")]
+    field_b: String,
+    field_c: i32,
+}
+
+#[test]
+fn test_separate_attrs_on_different_fields_renamed_skipped() {
+    let s = SeparateAttrsOnDifferentFields {
+        field_a: "hello".to_string(),
+        field_b: "".to_string(),
+        field_c: 42,
+    };
+    let bytes = super::collect_bytes(s.into_serializer());
+    assert_eq!(&bytes[..], b"{\"renamed_field\":\"hello\",\"field_c\":42}");
+}
+
+#[test]
+fn test_separate_attrs_on_different_fields_renamed_included() {
+    let s = SeparateAttrsOnDifferentFields {
+        field_a: "hello".to_string(),
+        field_b: "world".to_string(),
+        field_c: 42,
+    };
+    let bytes = super::collect_bytes(s.into_serializer());
+    assert_eq!(
+        &bytes[..],
+        b"{\"renamed_field\":\"hello\",\"field_b\":\"world\",\"field_c\":42}"
+    );
+}
+
+#[derive(Serialize)]
+struct SeparateAttrsOnSameField {
+    #[stream(rename = "custom_name")]
+    #[stream(skip_serialize_if = "|v: &String| v.is_empty()")]
+    field: String,
+}
+
+#[test]
+fn test_separate_attrs_on_same_field_skipped() {
+    let s = SeparateAttrsOnSameField {
+        field: "".to_string(),
+    };
+    let bytes = super::collect_bytes(s.into_serializer());
+    assert_eq!(&bytes[..], b"{}");
+}
+
+#[test]
+fn test_separate_attrs_on_same_field_included() {
+    let s = SeparateAttrsOnSameField {
+        field: "visible".to_string(),
+    };
+    let bytes = super::collect_bytes(s.into_serializer());
+    assert_eq!(&bytes[..], b"{\"custom_name\":\"visible\"}");
+}
+
+#[derive(Serialize)]
+struct CombinedAttrSameField {
+    #[stream(rename = "renamed", skip_serialize_if = "|v: &String| v.is_empty()")]
+    field: String,
+}
+
+#[test]
+fn test_combined_attr_same_field_skipped() {
+    let s = CombinedAttrSameField {
+        field: "".to_string(),
+    };
+    let bytes = super::collect_bytes(s.into_serializer());
+    assert_eq!(&bytes[..], b"{}");
+}
+
+#[test]
+fn test_combined_attr_same_field_included() {
+    let s = CombinedAttrSameField {
+        field: "visible".to_string(),
+    };
+    let bytes = super::collect_bytes(s.into_serializer());
+    assert_eq!(&bytes[..], b"{\"renamed\":\"visible\"}");
+}
+
+#[derive(Serialize)]
+struct MixedBothAttrs {
+    #[stream(rename = "renamed_a")]
+    #[stream(skip_serialize_if = "|v: &String| v.is_empty()")]
+    field_a: String,
+    #[stream(rename = "renamed_b", skip_serialize_if = "|v: &String| v.is_empty()")]
+    field_b: String,
+    field_c: i32,
+}
+
+#[test]
+fn test_mixed_both_attrs_all_skipped() {
+    let s = MixedBothAttrs {
+        field_a: "".to_string(),
+        field_b: "".to_string(),
+        field_c: 99,
+    };
+    let bytes = super::collect_bytes(s.into_serializer());
+    assert_eq!(&bytes[..], b"{\"field_c\":99}");
+}
+
+#[test]
+fn test_mixed_both_attrs_first_skipped_second_included() {
+    let s = MixedBothAttrs {
+        field_a: "".to_string(),
+        field_b: "present".to_string(),
+        field_c: 99,
+    };
+    let bytes = super::collect_bytes(s.into_serializer());
+    assert_eq!(&bytes[..], b"{\"renamed_b\":\"present\",\"field_c\":99}");
+}
+
+#[test]
+fn test_mixed_both_attrs_both_included() {
+    let s = MixedBothAttrs {
+        field_a: "visible".to_string(),
+        field_b: "also_visible".to_string(),
+        field_c: 99,
+    };
+    let bytes = super::collect_bytes(s.into_serializer());
+    assert_eq!(
+        &bytes[..],
+        b"{\"renamed_a\":\"visible\",\"renamed_b\":\"also_visible\",\"field_c\":99}"
+    );
+}
+
+#[derive(Serialize)]
+struct IntFieldWithRenameAndSkip {
+    #[stream(rename = "renamed_int", skip_serialize_if = "|v: &i32| *v == 0")]
+    value: i32,
+}
+
+#[test]
+fn test_int_rename_and_skip_zero() {
+    let s = IntFieldWithRenameAndSkip { value: 0 };
+    let bytes = super::collect_bytes(s.into_serializer());
+    assert_eq!(&bytes[..], b"{}");
+}
+
+#[test]
+fn test_int_rename_and_skip_nonzero() {
+    let s = IntFieldWithRenameAndSkip { value: 42 };
+    let bytes = super::collect_bytes(s.into_serializer());
+    assert_eq!(&bytes[..], b"{\"renamed_int\":42}");
+}
+
+#[derive(Serialize)]
+enum EnumVariantWithRenameAndSkip {
+    #[stream(rename = "renamed_variant", skip_serialize_if = "|_: &i32| false")]
+    Named { value: i32 },
+}
+
+#[test]
+fn test_enum_variant_with_rename_and_skip() {
+    let en = EnumVariantWithRenameAndSkip::Named { value: 10 };
+    let bytes = super::collect_bytes(en.into_serializer());
+    assert_eq!(&bytes[..], b"[{\"renamed_variant\":null}]");
+}
+
+#[derive(Serialize)]
+struct UnitStructWrapper(String);
+
+#[test]
+fn test_unit_struct_wrapper() {
+    let s = UnitStructWrapper("hello".to_string());
+    let bytes = super::collect_bytes(s.into_serializer());
+    assert_eq!(&bytes[..], b"{\"0\":\"hello\"}");
+}
+
+#[derive(Serialize)]
+struct UnitStructWrapperMulti(String, i32);
+
+#[test]
+fn test_unit_struct_wrapper_multi() {
+    let s = UnitStructWrapperMulti("hello".to_string(), 42);
+    let bytes = super::collect_bytes(s.into_serializer());
+    assert_eq!(&bytes[..], b"{\"0\":\"hello\",\"1\":42}");
+}
+
+#[derive(Serialize)]
+struct UnitStructWrapperWithRename {
+    #[stream(rename = "wrapped")]
+    inner: UnitStructWrapper,
+}
+
+#[test]
+fn test_unit_struct_wrapper_with_rename() {
+    let s = UnitStructWrapperWithRename {
+        inner: UnitStructWrapper("test".to_string()),
+    };
+    let bytes = super::collect_bytes(s.into_serializer());
+    assert_eq!(&bytes[..], b"{\"wrapped\":{\"0\":\"test\"}}");
+}
