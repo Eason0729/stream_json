@@ -48,6 +48,18 @@ use crate::error::Error;
 use crate::serde::{escape_string, IntoSerializer, Serializer};
 use crate::CHUNK_SIZE;
 
+macro_rules! impl_into_serializer_cast {
+    ($ty:ty, $serializer:ty, $cast:expr) => {
+        impl IntoSerializer for $ty {
+            type S = $serializer;
+
+            fn into_serializer(self) -> Self::S {
+                <$serializer>::new($cast(self))
+            }
+        }
+    };
+}
+
 /// Serializer for the unit type `()`.
 ///
 /// Emits `null` as a single chunk.
@@ -174,26 +186,9 @@ impl IntoSerializer for i64 {
     }
 }
 
-impl IntoSerializer for i8 {
-    type S = I64Serializer;
-    fn into_serializer(self) -> Self::S {
-        I64Serializer::new(self as i64)
-    }
-}
-
-impl IntoSerializer for i16 {
-    type S = I64Serializer;
-    fn into_serializer(self) -> Self::S {
-        I64Serializer::new(self as i64)
-    }
-}
-
-impl IntoSerializer for i32 {
-    type S = I64Serializer;
-    fn into_serializer(self) -> Self::S {
-        I64Serializer::new(self as i64)
-    }
-}
+impl_into_serializer_cast!(i8, I64Serializer, |value: i8| value as i64);
+impl_into_serializer_cast!(i16, I64Serializer, |value: i16| value as i64);
+impl_into_serializer_cast!(i32, I64Serializer, |value: i32| value as i64);
 
 /// Serializer for unsigned 64-bit integers.
 ///
@@ -234,26 +229,9 @@ impl IntoSerializer for u64 {
     }
 }
 
-impl IntoSerializer for u8 {
-    type S = U64Serializer;
-    fn into_serializer(self) -> Self::S {
-        U64Serializer::new(self as u64)
-    }
-}
-
-impl IntoSerializer for u16 {
-    type S = U64Serializer;
-    fn into_serializer(self) -> Self::S {
-        U64Serializer::new(self as u64)
-    }
-}
-
-impl IntoSerializer for u32 {
-    type S = U64Serializer;
-    fn into_serializer(self) -> Self::S {
-        U64Serializer::new(self as u64)
-    }
-}
+impl_into_serializer_cast!(u8, U64Serializer, |value: u8| value as u64);
+impl_into_serializer_cast!(u16, U64Serializer, |value: u16| value as u64);
+impl_into_serializer_cast!(u32, U64Serializer, |value: u32| value as u64);
 
 /// Serializer for 64-bit floating point numbers.
 ///
@@ -299,12 +277,7 @@ impl IntoSerializer for f64 {
     }
 }
 
-impl IntoSerializer for f32 {
-    type S = F64Serializer;
-    fn into_serializer(self) -> Self::S {
-        F64Serializer::new(self as f64)
-    }
-}
+impl_into_serializer_cast!(f32, F64Serializer, |value: f32| value as f64);
 
 impl IntoSerializer for std::net::IpAddr {
     type S = StringSerializer;
@@ -341,6 +314,83 @@ impl IntoSerializer for std::time::SystemTime {
             .duration_since(std::time::UNIX_EPOCH)
             .unwrap_or_default();
         StringSerializer::new(dur.as_secs_f64().to_string())
+    }
+}
+
+pub struct OptionSerializer<T: IntoSerializer> {
+    inner: Option<T::S>,
+    emitted: bool,
+}
+
+impl<T: IntoSerializer> OptionSerializer<T> {
+    pub fn new(value: Option<T>) -> Self {
+        Self {
+            inner: value.map(IntoSerializer::into_serializer),
+            emitted: false,
+        }
+    }
+}
+
+impl<T: IntoSerializer + Unpin> Serializer for OptionSerializer<T>
+where
+    T::S: Unpin,
+{
+    fn poll(&mut self, cx: &mut Context<'_>) -> Poll<Option<Result<Bytes, Error>>> {
+        if self.emitted {
+            return Poll::Ready(None);
+        }
+        self.emitted = true;
+        match self.inner.as_mut() {
+            Some(serializer) => serializer.poll(cx),
+            None => Poll::Ready(Some(Ok("null".into()))),
+        }
+    }
+}
+
+impl<T: IntoSerializer + Unpin> Unpin for OptionSerializer<T> where T::S: Unpin {}
+
+impl<T: IntoSerializer + Unpin> IntoSerializer for Option<T>
+where
+    T::S: Unpin,
+{
+    type S = OptionSerializer<T>;
+
+    fn into_serializer(self) -> Self::S {
+        OptionSerializer::new(self)
+    }
+}
+
+pub struct BoxSerializer<T: IntoSerializer> {
+    inner: T::S,
+}
+
+impl<T: IntoSerializer> BoxSerializer<T> {
+    pub fn new(value: Box<T>) -> Self {
+        Self {
+            inner: (*value).into_serializer(),
+        }
+    }
+}
+
+impl<T: IntoSerializer + Unpin> Serializer for BoxSerializer<T>
+where
+    T::S: Unpin,
+{
+    fn poll(&mut self, cx: &mut Context<'_>) -> Poll<Option<Result<Bytes, Error>>> {
+        self.inner.poll(cx)
+    }
+}
+
+impl<T: IntoSerializer + Unpin> Unpin for BoxSerializer<T> where T::S: Unpin {}
+
+impl<T: IntoSerializer + Unpin> IntoSerializer for Box<T>
+where
+    T::S: Unpin,
+{
+    type S = BoxSerializer<T>;
+
+    fn into_serializer(self) -> Self::S {
+        BoxSerializer::new(self)
     }
 }
 

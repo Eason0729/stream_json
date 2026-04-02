@@ -172,6 +172,7 @@ pub fn build_enum(
                         let rename_str = format!("\"{}\"", rename);
                         quote! {
                             self.emit_pos = 0;
+                            self.state = #state_name::ClosingBracket;
                             return std::task::Poll::Ready(Some(Ok(bytes::Bytes::from_static(#rename_str.as_bytes()))));
                         }
                     } else {
@@ -189,6 +190,7 @@ pub fn build_enum(
                             let rename_str = format!("\"{}\"", rename);
                             quote! {
                                 self.emit_pos = 0;
+                                self.state = #state_name::ClosingBracket;
                                 return std::task::Poll::Ready(Some(Ok(bytes::Bytes::from_static(#rename_str.as_bytes()))));
                             }
                         } else {
@@ -253,6 +255,7 @@ pub fn build_enum(
                             let rename_str = format!("\"{}\"", rename);
                             quote! {
                                 self.emit_pos = 0;
+                                self.state = #state_name::ClosingBracket;
                                 return std::task::Poll::Ready(Some(Ok(bytes::Bytes::from_static(#rename_str.as_bytes()))));
                             }
                         } else {
@@ -271,8 +274,9 @@ pub fn build_enum(
                         });
                         for (idx, _key) in keys.iter().enumerate() {
                             let key_str = &key_strings[idx];
-                            let key_pos = idx * 2 + 1;
-                            let val_pos = idx * 2 + 2;
+                            let key_pos = idx * 3 + 1;
+                            let val_pos = idx * 3 + 2;
+                            let comma_pos = idx * 3 + 3;
                             arms.push(quote! {
                                 #key_pos => {
                                     self.emit_pos = #val_pos;
@@ -281,12 +285,20 @@ pub fn build_enum(
                             });
                             arms.push(quote! {
                                 #val_pos => {
-                                    self.emit_pos = #key_pos + 1;
+                                    self.emit_pos = #comma_pos;
                                     return std::task::Poll::Ready(Some(Ok(bytes::Bytes::from_static(b"null"))));
                                 }
                             });
+                            if idx + 1 < count {
+                                arms.push(quote! {
+                                    #comma_pos => {
+                                        self.emit_pos = #key_pos + 3;
+                                        return std::task::Poll::Ready(Some(Ok(bytes::Bytes::from_static(b","))));
+                                    }
+                                });
+                            }
                         }
-                        let closing_pos = count * 2;
+                        let closing_pos = count * 3;
                         arms.push(quote! {
                             #closing_pos => {
                                 self.emit_pos = 0;
