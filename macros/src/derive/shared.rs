@@ -258,7 +258,7 @@ pub fn generate_serializer_struct(
 
     (
         quote! {
-            struct #serializer_name {
+            pub struct #serializer_name {
                 #struct_fields
             }
         },

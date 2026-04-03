@@ -39,7 +39,7 @@ pub fn build_struct(name: &Ident, fields: &Fields) -> TokenStream {
                 }
             }
 
-            struct #serializer_name {
+            pub struct #serializer_name {
                 emitted: bool,
             }
 
@@ -479,7 +479,7 @@ pub fn build_enum(
             }
         }
 
-        struct #serializer_name {
+        pub struct #serializer_name {
             inner: #name,
             variant_idx: usize,
             state: #state_name,
