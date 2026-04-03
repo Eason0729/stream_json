@@ -27,18 +27,15 @@ If a value cannot report its size, the default implementation returns `None`.
 
 ## Base64 Embed
 
-`Base64EmbedFile::new(reader, expected_size).await` now validates the provided
-size and preloads the first bytes needed for MIME detection.
+`Base64EmbedFile::new(reader, expected_size, mime_type)` validates the provided
+size and uses the provided mime_type.
 
 ```rust
 use futures::io::Cursor;
 use stream_json::Base64EmbedFile;
 
-# async fn demo() -> Result<(), stream_json::Error> {
-let embed = Base64EmbedFile::new(Cursor::new(vec![0u8; 16]), 16).await?;
+let embed = Base64EmbedFile::new(Cursor::new(vec![0u8; 16]), 16, "image/png".to_string())?;
 assert!(embed.size().is_some());
-# Ok(())
-# }
 ```
 
 ## Usage
