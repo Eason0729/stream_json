@@ -985,3 +985,32 @@ fn test_unit_struct_wrapper_with_rename() {
     let bytes = collect_bytes(s.into_serializer());
     assert_eq!(&bytes[..], b"{\"wrapped\":{\"0\":\"test\"}}");
 }
+
+use futures::io::Cursor;
+use stream_json::Base64EmbedFile;
+
+#[derive(IntoSerializer)]
+struct OpenAiRequest {
+    model: String,
+    image_data: Base64EmbedFile<Cursor<Vec<u8>>>,
+}
+
+#[test]
+fn test_openai_vision_request_with_base64_image() {
+    let png_header = vec![
+        0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A, 0x00, 0x00, 0x00, 0x0D, 0x49, 0x48, 0x44,
+        0x52,
+    ];
+    let cursor = Cursor::new(png_header);
+
+    let request = OpenAiRequest {
+        model: "gpt-4o".to_string(),
+        image_data: Base64EmbedFile::new(cursor, 16, "image/png".to_string()).unwrap(),
+    };
+
+    let bytes = collect_bytes(request.into_serializer());
+    let output_str = String::from_utf8(bytes).unwrap();
+
+    assert!(output_str.starts_with(r#"{"model":"gpt-4o","image_data":"#));
+    assert!(output_str.contains("data:image/png;base64,"));
+}
