@@ -1,6 +1,6 @@
 use proc_macro2::TokenStream;
 use quote::quote;
-use syn::{Fields, Ident};
+use syn::{Fields, Ident, Visibility};
 
 use super::super::attributes::{get_field_rename, get_variant_rename};
 use super::super::ident::{serializer_name, state_name};
@@ -19,7 +19,7 @@ fn escaped_string_size(s: &str) -> usize {
         .sum()
 }
 
-pub fn build_struct(name: &Ident, fields: &Fields) -> TokenStream {
+pub fn build_struct(name: &Ident, fields: &Fields, vis: &Visibility) -> TokenStream {
     let (field_infos, keys_array) = generate_field_keys(fields, name.clone());
     let field_count = field_infos.len();
     let state_name = state_name(name);
@@ -39,7 +39,7 @@ pub fn build_struct(name: &Ident, fields: &Fields) -> TokenStream {
                 }
             }
 
-            pub struct #serializer_name {
+            struct #serializer_name {
                 emitted: bool,
             }
 
@@ -104,7 +104,8 @@ pub fn build_struct(name: &Ident, fields: &Fields) -> TokenStream {
 
     let into_serializer_arm =
         generate_into_serializer_arm(name, fields, &field_infos, &keys_array, Some(&size_body));
-    let (serializer_struct, unpin_impl) = generate_serializer_struct(name, fields, &field_infos);
+    let (serializer_struct, unpin_impl) =
+        generate_serializer_struct(name, vis, fields, &field_infos);
     let emit_key_arms = generate_emit_key_arms(name, &field_infos);
     let emit_value_arms = generate_emit_value_arms(name, &field_infos, field_count);
 
@@ -169,6 +170,7 @@ pub fn build_struct(name: &Ident, fields: &Fields) -> TokenStream {
 pub fn build_enum(
     name: &Ident,
     variants: &syn::punctuated::Punctuated<syn::Variant, syn::Token![,]>,
+    vis: &Visibility,
 ) -> TokenStream {
     let serializer_name = serializer_name(name);
     let state_name = state_name(name);
@@ -479,7 +481,7 @@ pub fn build_enum(
             }
         }
 
-        pub struct #serializer_name {
+        #vis struct #serializer_name {
             inner: #name,
             variant_idx: usize,
             state: #state_name,

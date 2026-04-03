@@ -1,6 +1,6 @@
 use proc_macro2::TokenStream;
 use quote::quote;
-use syn::{Fields, Ident, Index, Type};
+use syn::{Fields, Ident, Index, Type, Visibility};
 
 use super::super::attributes::get_field_rename;
 use super::super::ident::{field_name, serializer_name, state_name};
@@ -236,6 +236,7 @@ pub fn generate_into_serializer_arm(
 
 pub fn generate_serializer_struct(
     name: &Ident,
+    vis: &Visibility,
     fields: &Fields,
     field_infos: &[FieldInfo],
 ) -> (TokenStream, TokenStream) {
@@ -258,7 +259,7 @@ pub fn generate_serializer_struct(
 
     (
         quote! {
-            pub struct #serializer_name {
+            #vis struct #serializer_name {
                 #struct_fields
             }
         },

@@ -31,6 +31,16 @@ struct Person {
 }
 
 #[derive(IntoSerializer)]
+pub struct PublicPerson {
+    name: String,
+    age: i32,
+}
+
+pub fn public_person_serializer(person: PublicPerson) -> <PublicPerson as IntoSerializer>::S {
+    person.into_serializer()
+}
+
+#[derive(IntoSerializer)]
 struct RenamedPerson {
     #[stream(rename = "user_name")]
     name: String,
@@ -75,6 +85,15 @@ fn test_derive_named_struct() {
     assert_eq!(person.size(), Some(25));
     let bytes = collect_bytes(person.into_serializer());
     assert_eq!(&bytes[..], b"{\"name\":\"Alice\",\"age\":30}");
+}
+
+#[test]
+fn test_public_struct_serializer_visibility() {
+    let person = PublicPerson {
+        name: "Alice".to_string(),
+        age: 30,
+    };
+    let _serializer = public_person_serializer(person);
 }
 
 #[derive(IntoSerializer)]
