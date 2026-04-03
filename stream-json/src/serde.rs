@@ -389,7 +389,7 @@ fn token_size(token: &Token<'_>) -> usize {
 pub enum FieldState<F: IntoSerializer> {
     Waiting {
         value: Option<F>,
-        skip_if: Option<Box<dyn Fn(&F) -> bool>>,
+        skip_if: Option<Box<dyn Fn(&F) -> bool + Send>>,
     },
     Active(<F as IntoSerializer>::S),
     Skipped,

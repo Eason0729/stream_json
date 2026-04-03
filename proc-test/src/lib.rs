@@ -160,6 +160,12 @@ fn test_skip_serialize_if_named_field_included() {
 }
 
 #[test]
+fn test_skip_serialize_if_struct_is_send() {
+    fn assert_send<T: Send>() {}
+    assert_send::<PersonWithOptional>();
+}
+
+#[test]
 fn test_renamed_fields() {
     let person = RenamedPerson {
         name: "Bob".to_string(),
