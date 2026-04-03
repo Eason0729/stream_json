@@ -93,7 +93,7 @@ pub fn generate_field_defs_and_inits(
         .map(|fi| {
             let fname = field_name(fi.index, name.span());
             let ty = &fi.ty;
-            quote! { #fname: crate::serde::FieldState<#ty> }
+            quote! { #fname: stream_json::serde::FieldState<#ty> }
         })
         .collect();
 
@@ -110,7 +110,7 @@ pub fn generate_field_defs_and_inits(
                         .map(|skip_expr| quote! { Some(Box::new(#skip_expr)) })
                         .unwrap_or_else(|| quote! { None });
                     quote! {
-                        #fname: crate::serde::FieldState::Waiting {
+                        #fname: stream_json::serde::FieldState::Waiting {
                             value: Some(self.#ident),
                             skip_if: #skip_if,
                         }
@@ -124,7 +124,7 @@ pub fn generate_field_defs_and_inits(
                         .map(|skip_expr| quote! { Some(Box::new(#skip_expr)) })
                         .unwrap_or_else(|| quote! { None });
                     quote! {
-                        #fname: crate::serde::FieldState::Waiting {
+                        #fname: stream_json::serde::FieldState::Waiting {
                             value: Some(self.#idx),
                             skip_if: #skip_if,
                         }
@@ -184,7 +184,7 @@ pub fn generate_emit_value_arms(
                             return std::task::Poll::Ready(Some(result));
                         }
                         std::task::Poll::Ready(None) => {
-                            self.#fname = crate::serde::FieldState::Dropped;
+                            self.#fname = stream_json::serde::FieldState::Dropped;
                             if self.field_idx + 1 < #field_count {
                                 self.field_idx += 1;
                                 self.state = #state_name::EmitComma;
@@ -218,7 +218,7 @@ pub fn generate_into_serializer_arm(
         .unwrap_or_else(|| quote! {});
 
     quote! {
-        impl crate::serde::IntoSerializer for #name {
+        impl stream_json::serde::IntoSerializer for #name {
             type S = #serializer_name;
             fn into_serializer(self) -> Self::S {
                 #serializer_name {

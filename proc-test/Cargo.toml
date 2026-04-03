@@ -1,0 +1,13 @@
+[package]
+name = "stream-json-proc-test"
+version.workspace = true
+edition.workspace = true
+
+[dependencies]
+stream-json = { path = "../stream-json" }
+bytes = { workspace = true }
+futures-core = { workspace = true }
+
+[dev-dependencies]
+tokio = { version = "1", features = ["full"] }
+futures = { version = "0.3", features = ["io-compat", "executor"] }

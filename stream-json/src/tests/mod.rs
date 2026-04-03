@@ -31,7 +31,6 @@ mod base64_embed;
 mod json_value;
 
 mod chunking;
-mod derive;
 mod primitives;
 mod tokens;
 mod vec;

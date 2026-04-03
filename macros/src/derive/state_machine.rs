@@ -27,7 +27,7 @@ pub fn build_struct(name: &Ident, fields: &Fields) -> TokenStream {
 
     if field_count == 0 {
         return quote! {
-            impl crate::serde::IntoSerializer for #name {
+            impl stream_json::serde::IntoSerializer for #name {
                 type S = #serializer_name;
 
                 fn into_serializer(self) -> Self::S {
@@ -43,8 +43,8 @@ pub fn build_struct(name: &Ident, fields: &Fields) -> TokenStream {
                 emitted: bool,
             }
 
-            impl crate::serde::Serializer for #serializer_name {
-                fn poll(&mut self, _cx: &mut std::task::Context<'_>) -> std::task::Poll<Option<Result<bytes::Bytes, crate::error::Error>>> {
+            impl stream_json::serde::Serializer for #serializer_name {
+                fn poll(&mut self, _cx: &mut std::task::Context<'_>) -> std::task::Poll<Option<Result<bytes::Bytes, stream_json::error::Error>>> {
                     if self.emitted {
                         std::task::Poll::Ready(None)
                     } else {
@@ -82,7 +82,7 @@ pub fn build_struct(name: &Ident, fields: &Fields) -> TokenStream {
             let key_size = fi.key_size;
             parts.push(quote! {
                 if #include {
-                    let field_size = match crate::serde::IntoSerializer::size(#field_value) {
+                    let field_size = match stream_json::serde::IntoSerializer::size(#field_value) {
                         Some(size) => size,
                         None => return None,
                     };
@@ -122,8 +122,8 @@ pub fn build_struct(name: &Ident, fields: &Fields) -> TokenStream {
             Done,
         }
 
-        impl crate::serde::Serializer for #serializer_name {
-            fn poll(&mut self, cx: &mut std::task::Context<'_>) -> std::task::Poll<Option<Result<bytes::Bytes, crate::error::Error>>> {
+        impl stream_json::serde::Serializer for #serializer_name {
+            fn poll(&mut self, cx: &mut std::task::Context<'_>) -> std::task::Poll<Option<Result<bytes::Bytes, stream_json::error::Error>>> {
                 loop {
                     match &mut self.state {
                         #state_name::Start => {
@@ -458,7 +458,7 @@ pub fn build_enum(
         .collect();
 
     quote! {
-        impl crate::serde::IntoSerializer for #name {
+        impl stream_json::serde::IntoSerializer for #name {
             type S = #serializer_name;
             fn into_serializer(self) -> Self::S {
                 let variant_idx = match &self {
@@ -493,8 +493,8 @@ pub fn build_enum(
             Done,
         }
 
-        impl crate::serde::Serializer for #serializer_name {
-            fn poll(&mut self, cx: &mut std::task::Context<'_>) -> std::task::Poll<Option<Result<bytes::Bytes, crate::error::Error>>> {
+        impl stream_json::serde::Serializer for #serializer_name {
+            fn poll(&mut self, cx: &mut std::task::Context<'_>) -> std::task::Poll<Option<Result<bytes::Bytes, stream_json::error::Error>>> {
                 loop {
                     match &mut self.state {
                         #state_name::Start => {

@@ -52,6 +52,8 @@ use std::task::Context;
 
 use crate::error::Error;
 
+pub use stream_json_macros::IntoSerializer;
+
 /// JSON token types for structured serialization.
 ///
 /// Use this enum to represent the structure of a JSON document as a sequence

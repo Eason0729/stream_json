@@ -1,6 +1,6 @@
 [workspace]
 resolver = "2"
-members = ["stream-json", "macros"]
+members = ["stream-json", "macros", "proc-test"]
 
 [workspace.package]
 version = "0.1.0"

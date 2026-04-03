@@ -126,8 +126,6 @@ pub use serde::{
     Token, TokenSerializer,
 };
 
-pub use stream_json_macros::IntoSerializer;
-
 #[cfg(feature = "base64")]
 pub use base64_embed::Base64EmbedFile;
 
