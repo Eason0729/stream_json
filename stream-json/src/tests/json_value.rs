@@ -1,4 +1,10 @@
+use base64::Engine;
+use futures::io::Cursor;
+use futures_core::task::Poll;
+
+use crate::base64_embed::Base64EmbedFile;
 use crate::serde::IntoSerializer;
+use crate::serde::Serializer;
 
 #[test]
 fn test_json_value_null() {
@@ -84,4 +90,48 @@ fn test_json_value_nested() {
     let result = super::collect_bytes(ser);
     let result_str = String::from_utf8(result).unwrap();
     assert_eq!(result_str, "{\"arr\":[1,{\"x\":2}],\"obj\":{\"y\":3}}");
+}
+
+#[test]
+fn test_json_value_with_base64_data_uri() {
+    let png_header = vec![
+        0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A, 0x00, 0x00, 0x00, 0x0D, 0x49, 0x48, 0x44,
+        0x52,
+    ];
+    let expected_base64 = base64::engine::general_purpose::STANDARD.encode(&png_header);
+    let data_uri = format!("data:image/png;base64,{}", expected_base64);
+    let value = serde_json::json!({"image": data_uri});
+
+    let result = super::collect_bytes(value.into_serializer());
+    let result_str = String::from_utf8(result).unwrap();
+
+    assert!(result_str.starts_with("{\"image\":\"data:image/png;base64,"));
+    assert!(result_str.ends_with("\"}"));
+    assert!(result_str.contains(&expected_base64));
+}
+
+#[test]
+fn test_json_value_base64_embed_file_to_value() {
+    let png_header = vec![
+        0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A, 0x00, 0x00, 0x00, 0x0D, 0x49, 0x48, 0x44,
+        0x52,
+    ];
+    let cursor = Cursor::new(png_header.clone());
+    let embed = Base64EmbedFile::new(cursor, 16, "image/png".to_string()).unwrap();
+
+    let mut embed_output = Vec::new();
+    let waker = std::task::Waker::noop();
+    let mut cx = std::task::Context::from_waker(&waker);
+    let mut embed_ser = embed;
+    while let Poll::Ready(Some(Ok(bytes))) = embed_ser.poll(&mut cx) {
+        embed_output.extend_from_slice(&bytes);
+    }
+    let embed_str = String::from_utf8(embed_output).unwrap();
+
+    let value = serde_json::json!({"image": embed_str});
+    let result = super::collect_bytes(value.into_serializer());
+    let result_str = String::from_utf8(result).unwrap();
+
+    assert!(result_str.starts_with("{\"image\":\"data:image/png;base64,"));
+    assert!(result_str.contains(&base64::engine::general_purpose::STANDARD.encode(&png_header)));
 }
