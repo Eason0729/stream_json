@@ -27,6 +27,9 @@ pub(super) mod memory;
 #[cfg(feature = "base64")]
 mod base64_embed;
 
+#[cfg(feature = "json_value")]
+mod json_value;
+
 mod chunking;
 mod derive;
 mod primitives;

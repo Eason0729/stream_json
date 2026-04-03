@@ -114,6 +114,9 @@ pub mod std_impl;
 #[cfg(feature = "base64")]
 pub mod base64_embed;
 
+#[cfg(feature = "json_value")]
+pub mod json_value_impl;
+
 #[cfg(test)]
 pub mod tests;
 
@@ -127,6 +130,9 @@ pub use stream_json_macros::IntoSerializer;
 
 #[cfg(feature = "base64")]
 pub use base64_embed::Base64EmbedFile;
+
+#[cfg(feature = "json_value")]
+pub use json_value_impl::JsonValueSerializer;
 
 pub mod serializers {
     //! Built-in serializers for primitive and standard library types.
@@ -147,4 +153,7 @@ pub mod serializers {
 
     #[cfg(feature = "base64")]
     pub use super::base64_embed::Base64EmbedFile;
+
+    #[cfg(feature = "json_value")]
+    pub use super::json_value_impl::JsonValueSerializer;
 }

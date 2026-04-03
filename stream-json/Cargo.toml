@@ -6,6 +6,7 @@ edition.workspace = true
 [features]
 default = []
 base64 = ["dep:base64", "dep:futures-io"]
+json_value = ["dep:serde_json"]
 
 [dependencies]
 bytes.workspace = true
@@ -14,6 +15,7 @@ thiserror.workspace = true
 
 base64 = { version = "0.22", optional = true }
 futures-io = { version = "0.3", optional = true }
+serde_json = { version = "1", optional = true }
 
 stream-json-macros = { path = "../macros" }
 
