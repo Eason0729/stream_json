@@ -105,7 +105,7 @@ struct Point(i32, i32);
 fn test_derive_tuple_struct() {
     let point = Point(10, 20);
     let bytes = collect_bytes(point.into_serializer());
-    assert_eq!(&bytes[..], b"{\"0\":10,\"1\":20}");
+    assert_eq!(&bytes[..], b"[10,20]");
 }
 
 #[derive(IntoSerializer)]
@@ -129,7 +129,7 @@ enum Color {
 fn test_derive_simple_enum() {
     let color = Color::Red;
     let bytes = collect_bytes(color.into_serializer());
-    assert_eq!(&bytes[..], b"[red]");
+    assert_eq!(&bytes[..], b"\"red\"");
 }
 
 #[derive(IntoSerializer)]
@@ -142,7 +142,7 @@ enum Status {
 fn test_derive_enum_with_data() {
     let status = Status::Inactive(true);
     let bytes = collect_bytes(status.into_serializer());
-    assert_eq!(&bytes[..], b"[[null]]");
+    assert_eq!(&bytes[..], b"\"inactive\"");
 }
 
 #[derive(IntoSerializer)]
@@ -267,10 +267,7 @@ struct TupleStructMultiple(i32, String, bool, f64);
 fn test_tuple_struct_multiple_fields() {
     let tuple = TupleStructMultiple(42, "hello".to_string(), true, 2.718);
     let bytes = collect_bytes(tuple.into_serializer());
-    assert_eq!(
-        &bytes[..],
-        b"{\"0\":42,\"1\":\"hello\",\"2\":true,\"3\":2.718}"
-    );
+    assert_eq!(&bytes[..], b"[42,\"hello\",true,2.718]");
 }
 
 #[derive(IntoSerializer)]
@@ -290,7 +287,7 @@ struct NewtypeStruct(String);
 fn test_newtype_struct() {
     let newtype = NewtypeStruct("wrapper".to_string());
     let bytes = collect_bytes(newtype.into_serializer());
-    assert_eq!(&bytes[..], b"{\"0\":\"wrapper\"}");
+    assert_eq!(&bytes[..], b"\"wrapper\"");
 }
 
 #[derive(IntoSerializer)]
@@ -304,21 +301,21 @@ enum MixedEnum {
 fn test_mixed_enum_unit_variant() {
     let en = MixedEnum::Unit;
     let bytes = collect_bytes(en.into_serializer());
-    assert_eq!(&bytes[..], b"[unit]");
+    assert_eq!(&bytes[..], b"\"unit\"");
 }
 
 #[test]
 fn test_mixed_enum_tuple_variant() {
     let en = MixedEnum::Tuple(1, 2);
     let bytes = collect_bytes(en.into_serializer());
-    assert_eq!(&bytes[..], b"[[nullnull]]");
+    assert_eq!(&bytes[..], b"\"tuple\"");
 }
 
 #[test]
 fn test_mixed_enum_named_variant() {
     let en = MixedEnum::Named { x: 10, y: 20 };
     let bytes = collect_bytes(en.into_serializer());
-    assert_eq!(&bytes[..], b"[{\"x\":null,\"y\":null}]");
+    assert_eq!(&bytes[..], b"\"named\"");
 }
 
 #[derive(IntoSerializer)]
@@ -335,21 +332,21 @@ enum RenamedEnum {
 fn test_renamed_enum_unit_variant() {
     let en = RenamedEnum::Unit;
     let bytes = collect_bytes(en.into_serializer());
-    assert_eq!(&bytes[..], b"[\"unit_variant\"]");
+    assert_eq!(&bytes[..], b"\"unit_variant\"");
 }
 
 #[test]
 fn test_renamed_enum_tuple_variant() {
     let en = RenamedEnum::Tuple(42);
     let bytes = collect_bytes(en.into_serializer());
-    assert_eq!(&bytes[..], b"[\"tuple_variant\"null]]");
+    assert_eq!(&bytes[..], b"\"tuple_variant\"");
 }
 
 #[test]
 fn test_renamed_enum_named_variant() {
     let en = RenamedEnum::Named { value: 99 };
     let bytes = collect_bytes(en.into_serializer());
-    assert_eq!(&bytes[..], b"[{\"named_variant\":null}]");
+    assert_eq!(&bytes[..], b"\"named_variant\"");
 }
 
 #[derive(IntoSerializer)]
@@ -371,21 +368,21 @@ enum ComplexEnum {
 fn test_complex_enum_empty_variant() {
     let en = ComplexEnum::Empty {};
     let bytes = collect_bytes(en.into_serializer());
-    assert_eq!(&bytes[..], b"[null]");
+    assert_eq!(&bytes[..], b"\"empty\"");
 }
 
 #[test]
 fn test_complex_enum_single_unnamed() {
     let en = ComplexEnum::SingleUnnamed("test".to_string());
     let bytes = collect_bytes(en.into_serializer());
-    assert_eq!(&bytes[..], b"[[null]]");
+    assert_eq!(&bytes[..], b"\"single_unnamed\"");
 }
 
 #[test]
 fn test_complex_enum_multiple_unnamed() {
     let en = ComplexEnum::MultipleUnnamed("test".to_string(), 42, true);
     let bytes = collect_bytes(en.into_serializer());
-    assert_eq!(&bytes[..], b"[[nullnullnull]]");
+    assert_eq!(&bytes[..], b"\"multiple_unnamed\"");
 }
 
 #[test]
@@ -394,7 +391,7 @@ fn test_complex_enum_single_named() {
         name: "Alice".to_string(),
     };
     let bytes = collect_bytes(en.into_serializer());
-    assert_eq!(&bytes[..], b"[{\"name\":null}]");
+    assert_eq!(&bytes[..], b"\"single_named\"");
 }
 
 #[test]
@@ -405,10 +402,7 @@ fn test_complex_enum_multiple_named() {
         active: true,
     };
     let bytes = collect_bytes(en.into_serializer());
-    assert_eq!(
-        &bytes[..],
-        b"[{\"name\":null,\"age\":null,\"active\":null}]"
-    );
+    assert_eq!(&bytes[..], b"\"multiple_named\"");
 }
 
 #[derive(IntoSerializer)]
@@ -547,7 +541,7 @@ enum EnumWithRenamedFields {
 fn test_enum_with_renamed_fields() {
     let en = EnumWithRenamedFields::Named { field: 42 };
     let bytes = collect_bytes(en.into_serializer());
-    assert_eq!(&bytes[..], b"[{\"renamed_field\":null}]");
+    assert_eq!(&bytes[..], b"\"named\"");
 }
 
 #[derive(IntoSerializer)]
@@ -594,21 +588,21 @@ enum ThreeElements {
 fn test_three_element_enum_first() {
     let en = ThreeElements::First;
     let bytes = collect_bytes(en.into_serializer());
-    assert_eq!(&bytes[..], b"[first]");
+    assert_eq!(&bytes[..], b"\"first\"");
 }
 
 #[test]
 fn test_three_element_enum_second() {
     let en = ThreeElements::Second;
     let bytes = collect_bytes(en.into_serializer());
-    assert_eq!(&bytes[..], b"[second]");
+    assert_eq!(&bytes[..], b"\"second\"");
 }
 
 #[test]
 fn test_three_element_enum_third() {
     let en = ThreeElements::Third;
     let bytes = collect_bytes(en.into_serializer());
-    assert_eq!(&bytes[..], b"[third]");
+    assert_eq!(&bytes[..], b"\"third\"");
 }
 
 #[derive(IntoSerializer)]
@@ -632,7 +626,7 @@ enum SingleVariantEnum {
 fn test_single_variant_enum() {
     let en = SingleVariantEnum::Only { value: 77 };
     let bytes = collect_bytes(en.into_serializer());
-    assert_eq!(&bytes[..], b"[{\"value\":null}]");
+    assert_eq!(&bytes[..], b"\"only\"");
 }
 
 #[derive(IntoSerializer)]
@@ -975,7 +969,7 @@ enum EnumVariantWithRenameAndSkip {
 fn test_enum_variant_with_rename_and_skip() {
     let en = EnumVariantWithRenameAndSkip::Named { value: 10 };
     let bytes = collect_bytes(en.into_serializer());
-    assert_eq!(&bytes[..], b"[{\"renamed_variant\":null}]");
+    assert_eq!(&bytes[..], b"\"renamed_variant\"");
 }
 
 #[derive(IntoSerializer)]
@@ -985,7 +979,7 @@ struct UnitStructWrapper(String);
 fn test_unit_struct_wrapper() {
     let s = UnitStructWrapper("hello".to_string());
     let bytes = collect_bytes(s.into_serializer());
-    assert_eq!(&bytes[..], b"{\"0\":\"hello\"}");
+    assert_eq!(&bytes[..], b"\"hello\"");
 }
 
 #[derive(IntoSerializer)]
@@ -995,7 +989,7 @@ struct UnitStructWrapperMulti(String, i32);
 fn test_unit_struct_wrapper_multi() {
     let s = UnitStructWrapperMulti("hello".to_string(), 42);
     let bytes = collect_bytes(s.into_serializer());
-    assert_eq!(&bytes[..], b"{\"0\":\"hello\",\"1\":42}");
+    assert_eq!(&bytes[..], b"[\"hello\",42]");
 }
 
 #[derive(IntoSerializer)]
@@ -1010,7 +1004,7 @@ fn test_unit_struct_wrapper_with_rename() {
         inner: UnitStructWrapper("test".to_string()),
     };
     let bytes = collect_bytes(s.into_serializer());
-    assert_eq!(&bytes[..], b"{\"wrapped\":{\"0\":\"test\"}}");
+    assert_eq!(&bytes[..], b"{\"wrapped\":\"test\"}");
 }
 
 use futures::io::Cursor;

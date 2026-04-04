@@ -691,6 +691,146 @@ where
     }
 }
 
+enum DynArrayState {
+    Start,
+    EmitValue,
+    EmitComma,
+    Close,
+    End,
+}
+
+pub struct DynArraySerializer {
+    items: Vec<Box<dyn Serializer + Unpin>>,
+    idx: usize,
+    state: DynArrayState,
+}
+
+impl DynArraySerializer {
+    pub fn new(items: Vec<Box<dyn Serializer + Unpin>>) -> Self {
+        Self {
+            items,
+            idx: 0,
+            state: DynArrayState::Start,
+        }
+    }
+}
+
+impl Serializer for DynArraySerializer {
+    fn poll(&mut self, cx: &mut Context<'_>) -> Poll<Option<Result<Bytes, Error>>> {
+        loop {
+            match self.state {
+                DynArrayState::Start => {
+                    if self.items.is_empty() {
+                        self.state = DynArrayState::End;
+                        return Poll::Ready(Some(Ok("[]".into())));
+                    }
+                    self.state = DynArrayState::EmitValue;
+                    return Poll::Ready(Some(Ok("[".into())));
+                }
+                DynArrayState::EmitValue => {
+                    let serializer = &mut self.items[self.idx];
+                    match serializer.poll(cx) {
+                        Poll::Ready(Some(result)) => return Poll::Ready(Some(result)),
+                        Poll::Ready(None) => {
+                            self.idx += 1;
+                            if self.idx >= self.items.len() {
+                                self.state = DynArrayState::Close;
+                            } else {
+                                self.state = DynArrayState::EmitComma;
+                            }
+                        }
+                        Poll::Pending => return Poll::Pending,
+                    }
+                }
+                DynArrayState::EmitComma => {
+                    self.state = DynArrayState::EmitValue;
+                    return Poll::Ready(Some(Ok(",".into())));
+                }
+                DynArrayState::Close => {
+                    self.state = DynArrayState::End;
+                    return Poll::Ready(Some(Ok("]".into())));
+                }
+                DynArrayState::End => return Poll::Ready(None),
+            }
+        }
+    }
+}
+
+impl Unpin for DynArraySerializer {}
+
+enum DynObjectState {
+    Start,
+    EmitKey,
+    EmitValue,
+    EmitComma,
+    Close,
+    End,
+}
+
+pub struct DynObjectSerializer {
+    fields: Vec<(Bytes, Box<dyn Serializer + Unpin>)>,
+    idx: usize,
+    state: DynObjectState,
+}
+
+impl DynObjectSerializer {
+    pub fn new(fields: Vec<(Bytes, Box<dyn Serializer + Unpin>)>) -> Self {
+        Self {
+            fields,
+            idx: 0,
+            state: DynObjectState::Start,
+        }
+    }
+}
+
+impl Serializer for DynObjectSerializer {
+    fn poll(&mut self, cx: &mut Context<'_>) -> Poll<Option<Result<Bytes, Error>>> {
+        loop {
+            match self.state {
+                DynObjectState::Start => {
+                    if self.fields.is_empty() {
+                        self.state = DynObjectState::End;
+                        return Poll::Ready(Some(Ok("{}".into())));
+                    }
+                    self.state = DynObjectState::EmitKey;
+                    return Poll::Ready(Some(Ok("{".into())));
+                }
+                DynObjectState::EmitKey => {
+                    let (key, _) = &self.fields[self.idx];
+                    self.state = DynObjectState::EmitValue;
+                    return Poll::Ready(Some(Ok(key.clone())));
+                }
+                DynObjectState::EmitValue => {
+                    let (_, serializer) = &mut self.fields[self.idx];
+                    match serializer.poll(cx) {
+                        Poll::Ready(Some(result)) => return Poll::Ready(Some(result)),
+                        Poll::Ready(None) => {
+                            self.idx += 1;
+                            if self.idx >= self.fields.len() {
+                                self.state = DynObjectState::Close;
+                            } else {
+                                self.state = DynObjectState::EmitComma;
+                            }
+                        }
+                        Poll::Pending => return Poll::Pending,
+                    }
+                }
+                DynObjectState::EmitComma => {
+                    self.state = DynObjectState::EmitKey;
+                    return Poll::Ready(Some(Ok(",".into())));
+                }
+                DynObjectState::Close => {
+                    self.state = DynObjectState::End;
+                    return Poll::Ready(Some(Ok("}".into())));
+                }
+                DynObjectState::End => return Poll::Ready(None),
+            }
+        }
+    }
+}
+
+impl Unpin for DynObjectSerializer {}
+
 impl Serializer for Box<dyn Serializer + Unpin> {
     fn poll(&mut self, cx: &mut Context<'_>) -> Poll<Option<Result<Bytes, Error>>> {
         (**self).poll(cx)
