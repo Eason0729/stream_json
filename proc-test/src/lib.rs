@@ -1012,12 +1012,12 @@ fn test_unit_struct_wrapper_with_rename() {
 }
 
 use futures::io::Cursor;
-use stream_json::Base64EmbedFile;
+use stream_json::Base64EmbedURL;
 
 #[derive(IntoSerializer)]
 struct OpenAiRequest {
     model: String,
-    image_data: Base64EmbedFile<Cursor<Vec<u8>>>,
+    image_data: Base64EmbedURL<Cursor<Vec<u8>>>,
 }
 
 #[test]
@@ -1030,7 +1030,7 @@ fn test_openai_vision_request_with_base64_image() {
 
     let request = OpenAiRequest {
         model: "gpt-4o".to_string(),
-        image_data: Base64EmbedFile::new(cursor, 16, "image/png".to_string()).unwrap(),
+        image_data: Base64EmbedURL::new(cursor, 16, "image/png".to_string()).unwrap(),
     };
 
     let bytes = collect_bytes(request.into_serializer());

@@ -3,7 +3,7 @@ use bytes::Bytes;
 use futures::io::Cursor;
 use futures_core::task::Poll;
 
-use crate::base64_embed::Base64EmbedFile;
+use crate::base64_embed::Base64EmbedURL;
 use crate::error::Error;
 use crate::serde::Serializer;
 
@@ -31,7 +31,7 @@ fn basic_base64_embed_png_magic_bytes() {
         0x52,
     ];
     let cursor = Cursor::new(png_header);
-    let ser = Base64EmbedFile::new(cursor, 16, "image/png".to_string()).unwrap();
+    let ser = Base64EmbedURL::new(cursor, 16, "image/png".to_string()).unwrap();
     assert_eq!(ser.size(), Some("data:image/png;base64,".len() + 24));
 
     let output = collect_bytes(ser);
@@ -49,7 +49,7 @@ fn basic_base64_embed_with_into_serializer() {
         0x52,
     ];
     let cursor = Cursor::new(png_header);
-    let embed = Base64EmbedFile::new(cursor, 16, "image/png".to_string()).unwrap();
+    let embed = Base64EmbedURL::new(cursor, 16, "image/png".to_string()).unwrap();
     let ser = embed.into_serializer();
 
     let output = collect_bytes(ser);
@@ -62,7 +62,7 @@ fn basic_base64_embed_with_into_serializer() {
 fn basic_base64_embed_empty_data() {
     let data = Vec::new();
     let cursor = Cursor::new(data);
-    let ser = Base64EmbedFile::new(cursor, 0, "application/octet-stream".to_string()).unwrap();
+    let ser = Base64EmbedURL::new(cursor, 0, "application/octet-stream".to_string()).unwrap();
     assert_eq!(
         ser.size(),
         Some("data:application/octet-stream;base64,".len())
@@ -103,7 +103,7 @@ mod memory_tests {
             let data = std::fs::read("testdata/large_image.png").expect("failed to read file");
             let cursor = Cursor::new(data);
             let ser =
-                Base64EmbedFile::new(cursor, 10 * 1024 * 1024, "image/png".to_string()).unwrap();
+                Base64EmbedURL::new(cursor, 10 * 1024 * 1024, "image/png".to_string()).unwrap();
 
             let output = collect_bytes(ser);
             std::hint::black_box(output)
@@ -115,7 +115,7 @@ mod memory_tests {
 fn base64_embed_correct_size() {
     let data = vec![0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A];
     let cursor = Cursor::new(data.clone());
-    let ser = Base64EmbedFile::new(cursor, 8, "image/png".to_string()).unwrap();
+    let ser = Base64EmbedURL::new(cursor, 8, "image/png".to_string()).unwrap();
 
     let output = collect_bytes(ser);
     let output_str = String::from_utf8(output).unwrap();
@@ -128,7 +128,7 @@ fn base64_embed_correct_size() {
 fn base64_embed_early_eof_error() {
     let data = vec![0x89, 0x50, 0x4E, 0x47];
     let cursor = Cursor::new(data);
-    let mut ser = Base64EmbedFile::new(cursor, 16, "image/png".to_string()).unwrap();
+    let mut ser = Base64EmbedURL::new(cursor, 16, "image/png".to_string()).unwrap();
 
     let mut result = Vec::new();
     let mut err = None;
@@ -155,7 +155,7 @@ fn base64_embed_late_eof_truncates() {
         0x52, 0xFF, 0xFE,
     ];
     let cursor = Cursor::new(data.clone());
-    let ser = Base64EmbedFile::new(cursor, 16, "image/png".to_string()).unwrap();
+    let ser = Base64EmbedURL::new(cursor, 16, "image/png".to_string()).unwrap();
 
     let output = collect_bytes(ser);
     let output_str = String::from_utf8(output).unwrap();

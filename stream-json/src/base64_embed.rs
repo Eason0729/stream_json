@@ -8,7 +8,7 @@ use crate::error::Error;
 use crate::serde::{IntoSerializer, Serializer};
 use crate::CHUNK_SIZE;
 
-enum Base64EmbedState<T: AsyncRead + Unpin> {
+enum Base64EmbedURLState<T: AsyncRead + Unpin> {
     EmitHeader {
         reader: T,
         mime_type: String,
@@ -25,8 +25,8 @@ enum Base64EmbedState<T: AsyncRead + Unpin> {
     Done,
 }
 
-pub struct Base64EmbedFile<T: AsyncRead + Unpin> {
-    state: Base64EmbedState<T>,
+pub struct Base64EmbedURL<T: AsyncRead + Unpin> {
+    state: Base64EmbedURLState<T>,
     mime_type: String,
     expected_size: usize,
 }
@@ -42,10 +42,10 @@ fn base64_len(size: usize) -> usize {
     size.div_ceil(3) * 4
 }
 
-impl<T: AsyncRead + Unpin> Base64EmbedFile<T> {
+impl<T: AsyncRead + Unpin> Base64EmbedURL<T> {
     pub fn new(reader: T, expected_size: usize, mime_type: String) -> Result<Self, Error> {
         Ok(Self {
-            state: Base64EmbedState::EmitHeader {
+            state: Base64EmbedURLState::EmitHeader {
                 reader,
                 mime_type: mime_type.clone(),
                 expected_size,
@@ -61,17 +61,17 @@ impl<T: AsyncRead + Unpin> Base64EmbedFile<T> {
     }
 }
 
-impl<T: AsyncRead + Unpin> Serializer for Base64EmbedFile<T> {
+impl<T: AsyncRead + Unpin> Serializer for Base64EmbedURL<T> {
     fn poll(&mut self, cx: &mut Context<'_>) -> Poll<Option<Result<Bytes, Error>>> {
         loop {
-            match std::mem::replace(&mut self.state, Base64EmbedState::Done) {
-                Base64EmbedState::EmitHeader {
+            match std::mem::replace(&mut self.state, Base64EmbedURLState::Done) {
+                Base64EmbedURLState::EmitHeader {
                     reader,
                     mime_type,
                     expected_size,
                 } => {
                     let header = format!("data:{};base64,", mime_type);
-                    self.state = Base64EmbedState::ReadAndEncode {
+                    self.state = Base64EmbedURLState::ReadAndEncode {
                         reader,
                         encoded: String::new(),
                         chunk_start: 0,
@@ -81,7 +81,7 @@ impl<T: AsyncRead + Unpin> Serializer for Base64EmbedFile<T> {
                     };
                     return Poll::Ready(Some(Ok(Bytes::from(header))));
                 }
-                Base64EmbedState::ReadAndEncode {
+                Base64EmbedURLState::ReadAndEncode {
                     mut reader,
                     mut encoded,
                     mut chunk_start,
@@ -93,7 +93,7 @@ impl<T: AsyncRead + Unpin> Serializer for Base64EmbedFile<T> {
                         let end = std::cmp::min(chunk_start + CHUNK_SIZE, encoded.len());
                         let chunk = encoded[chunk_start..end].to_string();
                         chunk_start = end;
-                        self.state = Base64EmbedState::ReadAndEncode {
+                        self.state = Base64EmbedURLState::ReadAndEncode {
                             reader,
                             encoded,
                             chunk_start,
@@ -136,7 +136,7 @@ impl<T: AsyncRead + Unpin> Serializer for Base64EmbedFile<T> {
                                 .encode(&buffer[..encode_len]);
                             chunk_start = 0;
                             let at_expected = bytes_read >= expected_size;
-                            self.state = Base64EmbedState::ReadAndEncode {
+                            self.state = Base64EmbedURLState::ReadAndEncode {
                                 reader,
                                 encoded,
                                 chunk_start,
@@ -150,7 +150,7 @@ impl<T: AsyncRead + Unpin> Serializer for Base64EmbedFile<T> {
                         }
                         Poll::Ready(Err(e)) => return Poll::Ready(Some(Err(Error::Io(e)))),
                         Poll::Pending => {
-                            self.state = Base64EmbedState::ReadAndEncode {
+                            self.state = Base64EmbedURLState::ReadAndEncode {
                                 reader,
                                 encoded,
                                 chunk_start,
@@ -162,16 +162,16 @@ impl<T: AsyncRead + Unpin> Serializer for Base64EmbedFile<T> {
                         }
                     }
                 }
-                Base64EmbedState::Done => return Poll::Ready(None),
+                Base64EmbedURLState::Done => return Poll::Ready(None),
             }
         }
     }
 }
 
-impl<T: AsyncRead + Unpin> Unpin for Base64EmbedFile<T> {}
+impl<T: AsyncRead + Unpin> Unpin for Base64EmbedURL<T> {}
 
-impl<T: AsyncRead + Unpin> IntoSerializer for Base64EmbedFile<T> {
-    type S = Base64EmbedFile<T>;
+impl<T: AsyncRead + Unpin> IntoSerializer for Base64EmbedURL<T> {
+    type S = Base64EmbedURL<T>;
 
     fn into_serializer(self) -> Self::S {
         self
