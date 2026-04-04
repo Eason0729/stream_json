@@ -32,5 +32,6 @@ mod json_value;
 
 mod chunking;
 mod primitives;
+mod std_impl_size;
 mod tokens;
 mod vec;

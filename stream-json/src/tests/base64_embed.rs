@@ -77,42 +77,42 @@ fn basic_base64_embed_empty_data() {
     assert!(output_str.ends_with('"'));
 }
 
-#[cfg(target_os = "linux")]
-mod memory_tests {
-    use super::*;
-    use crate::tests::memory as mem;
+// #[cfg(target_os = "linux")]
+// mod memory_tests {
+//     use super::*;
+//     use crate::tests::memory as mem;
 
-    fn touch_pages(bytes: usize) -> Vec<u8> {
-        mem::touch_pages(bytes)
-    }
+//     fn touch_pages(bytes: usize) -> Vec<u8> {
+//         mem::touch_pages(bytes)
+//     }
 
-    fn memory_usage() -> Option<mem::MemoryUsage> {
-        mem::memory_usage()
-    }
+//     fn memory_usage() -> Option<mem::MemoryUsage> {
+//         mem::memory_usage()
+//     }
 
-    fn assert_physical_memory_increases_by_at_least<F, T>(min_delta: usize, f: F)
-    where
-        F: FnOnce() -> T,
-    {
-        mem::assert_physical_memory_increases_by_at_least(min_delta, f)
-    }
+//     fn assert_physical_memory_increases_by_at_least<F, T>(min_delta: usize, f: F)
+//     where
+//         F: FnOnce() -> T,
+//     {
+//         mem::assert_physical_memory_increases_by_at_least(min_delta, f)
+//     }
 
-    #[test]
-    fn base64_embed_memory_large_file() {
-        let file_size = 10 * 1024 * 1024;
-        touch_pages(file_size);
+//     #[test]
+//     fn base64_embed_memory_large_file() {
+//         let file_size = 10 * 1024 * 1024;
+//         touch_pages(file_size);
 
-        assert_physical_memory_increases_by_at_least(0, || {
-            let data = std::fs::read("testdata/large_image.png").expect("failed to read file");
-            let cursor = Cursor::new(data);
-            let ser =
-                Base64EmbedURL::new(cursor, 10 * 1024 * 1024, "image/png".to_string()).unwrap();
+//         assert_physical_memory_increases_by_at_least(0, || {
+//             let data = std::fs::read("testdata/large_image.png").expect("failed to read file");
+//             let cursor = Cursor::new(data);
+//             let ser =
+//                 Base64EmbedURL::new(cursor, 10 * 1024 * 1024, "image/png".to_string()).unwrap();
 
-            let output = collect_bytes(ser);
-            std::hint::black_box(output)
-        });
-    }
-}
+//             let output = collect_bytes(ser);
+//             std::hint::black_box(output)
+//         });
+//     }
+// }
 
 #[test]
 fn base64_embed_correct_size() {

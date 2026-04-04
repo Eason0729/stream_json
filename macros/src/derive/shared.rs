@@ -14,7 +14,7 @@ pub struct FieldInfo {
     pub key_size: usize,
 }
 
-fn escaped_string_size(s: &str) -> usize {
+pub(super) fn escaped_string_size(s: &str) -> usize {
     s.chars()
         .map(|c| match c {
             '"' | '\\' | '\n' | '\r' | '\t' => 2,
@@ -24,7 +24,7 @@ fn escaped_string_size(s: &str) -> usize {
         .sum()
 }
 
-fn escape_json_string(s: &str) -> String {
+pub(super) fn escape_json_string(s: &str) -> String {
     let mut result = String::with_capacity(s.len());
     for c in s.chars() {
         match c {

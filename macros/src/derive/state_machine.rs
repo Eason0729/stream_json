@@ -5,8 +5,9 @@ use syn::{Fields, Ident, Visibility};
 use super::super::attributes::get_variant_rename;
 use super::super::ident::{serializer_name, state_name};
 use super::shared::{
-    generate_emit_key_arms, generate_emit_key_or_comma_arms, generate_emit_value_arms,
-    generate_field_keys, generate_into_serializer_arm, generate_serializer_struct,
+    escape_json_string, escaped_string_size, generate_emit_key_arms,
+    generate_emit_key_or_comma_arms, generate_emit_value_arms, generate_field_keys,
+    generate_into_serializer_arm, generate_serializer_struct,
 };
 
 fn to_snake_case(name: &str) -> String {
@@ -326,8 +327,9 @@ pub fn build_enum(
         let ident = &variant.ident;
         let variant_name =
             get_variant_rename(variant).unwrap_or_else(|| to_snake_case(&ident.to_string()));
-        let variant_key = format!("\"{}\"", variant_name);
-        let variant_key_len = variant_key.len();
+        let escaped_variant_name = escape_json_string(&variant_name);
+        let variant_key = format!("\"{}\"", escaped_variant_name);
+        let variant_key_len = escaped_string_size(&variant_name) + 2;
         match &variant.fields {
             Fields::Unit => {
                 variant_serializers.push(quote! {
