@@ -392,14 +392,18 @@ where
             return Poll::Ready(None);
         }
         match self.inner.as_mut() {
-            Some(serializer) => {
-                let result = serializer.poll(cx);
-                if result.is_pending() {
-                    return result;
+            Some(serializer) => match serializer.poll(cx) {
+                Poll::Ready(Some(Ok(bytes))) => Poll::Ready(Some(Ok(bytes))),
+                Poll::Ready(Some(Err(e))) => {
+                    self.emitted = true;
+                    Poll::Ready(Some(Err(e)))
                 }
-                self.emitted = true;
-                result
-            }
+                Poll::Ready(None) => {
+                    self.emitted = true;
+                    Poll::Ready(None)
+                }
+                Poll::Pending => Poll::Pending,
+            },
             None => {
                 self.emitted = true;
                 Poll::Ready(Some(Ok("null".into())))
