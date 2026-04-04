@@ -377,6 +377,19 @@ fn test_option_none_size_matches() {
 }
 
 #[derive(IntoSerializer)]
+struct OptionVec {
+    items: Option<Vec<String>>,
+}
+
+#[test]
+fn test_option_vec_size_matches() {
+    let s = OptionVec {
+        items: Some(vec!["a".to_string(), "b".to_string()]),
+    };
+    assert_size_matches_output(s);
+}
+
+#[derive(IntoSerializer)]
 struct NestedWithOption {
     inner: WithOption,
     tag: String,

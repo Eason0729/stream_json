@@ -1035,3 +1035,165 @@ fn test_openai_vision_request_with_base64_image() {
     assert!(output_str.starts_with(r#"{"model":"gpt-4o","image_data":"#));
     assert!(output_str.contains("data:image/png;base64,"));
 }
+
+#[derive(IntoSerializer)]
+struct WithOptionField {
+    name: String,
+    #[stream(skip_serialize_if = "|v: &Option<String>| v.is_none()")]
+    nickname: Option<String>,
+    age: i32,
+}
+
+#[test]
+fn test_option_field_none_skipped_size_matches_actual() {
+    // When Option is None and skip_serialize_if returns true,
+    // the field is omitted entirely from output (not serialized as null)
+    let person = WithOptionField {
+        name: "Alice".to_string(),
+        nickname: None,
+        age: 30,
+    };
+    let size = person.size();
+    let bytes = collect_bytes(person.into_serializer());
+    let actual_size = bytes.len();
+    assert_eq!(
+        size,
+        Some(actual_size),
+        "size() should match actual bytes when field is skipped"
+    );
+    assert_eq!(&bytes[..], b"{\"name\":\"Alice\",\"age\":30}");
+}
+
+#[test]
+fn test_option_field_some_included_size_matches_actual() {
+    let person = WithOptionField {
+        name: "Alice".to_string(),
+        nickname: Some("Ali".to_string()),
+        age: 30,
+    };
+    let size = person.size();
+    let bytes = collect_bytes(person.into_serializer());
+    let actual_size = bytes.len();
+    assert_eq!(
+        size,
+        Some(actual_size),
+        "size() should match actual bytes when field is included"
+    );
+    assert_eq!(
+        &bytes[..],
+        b"{\"name\":\"Alice\",\"nickname\":\"Ali\",\"age\":30}"
+    );
+}
+
+#[derive(IntoSerializer)]
+struct WithVecField {
+    name: String,
+    #[stream(skip_serialize_if = "|v: &Vec<String>| v.is_empty()")]
+    tags: Vec<String>,
+    value: i32,
+}
+
+#[test]
+fn test_vec_field_empty_skipped_size_matches_actual() {
+    let person = WithVecField {
+        name: "Alice".to_string(),
+        tags: vec![],
+        value: 30,
+    };
+    let size = person.size();
+    let bytes = collect_bytes(person.into_serializer());
+    let actual_size = bytes.len();
+    assert_eq!(
+        size,
+        Some(actual_size),
+        "size() should match actual bytes for skipped empty Vec"
+    );
+    assert_eq!(&bytes[..], b"{\"name\":\"Alice\",\"value\":30}");
+}
+
+#[test]
+fn test_vec_field_nonempty_size_matches_actual() {
+    let person = WithVecField {
+        name: "Alice".to_string(),
+        tags: vec!["rust".to_string()],
+        value: 30,
+    };
+    let size = person.size();
+    let bytes = collect_bytes(person.into_serializer());
+    let actual_size = bytes.len();
+    assert_eq!(
+        size,
+        Some(actual_size),
+        "size() should match actual bytes for non-empty Vec"
+    );
+}
+
+#[test]
+fn test_base64_embed_url_size_matches_actual() {
+    let png_header = vec![
+        0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A, 0x00, 0x00, 0x00, 0x0D, 0x49, 0x48, 0x44,
+        0x52,
+    ];
+    let actual_size = png_header.len();
+    let cursor = Cursor::new(png_header.clone());
+
+    let embed = Base64EmbedURL::new(cursor, actual_size, "image/png".to_string()).unwrap();
+    let size = embed.size();
+
+    let ser = embed.into_serializer();
+    let bytes = collect_bytes(ser);
+    let streamed_size = bytes.len();
+
+    assert_eq!(
+        size,
+        Some(streamed_size),
+        "size() should match actual streamed bytes for Base64EmbedURL"
+    );
+}
+
+#[derive(IntoSerializer)]
+struct WithTwoVecFields {
+    name: String,
+    #[stream(skip_serialize_if = "|v: &Vec<String>| v.is_empty()")]
+    tags: Vec<String>,
+    #[stream(skip_serialize_if = "|v: &Vec<String>| v.is_empty()")]
+    extra: Vec<String>,
+    value: i32,
+}
+
+#[test]
+fn test_two_vec_fields_both_empty_size_matches_actual() {
+    let person = WithTwoVecFields {
+        name: "Alice".to_string(),
+        tags: vec![],
+        extra: vec![],
+        value: 30,
+    };
+    let size = person.size();
+    let bytes = collect_bytes(person.into_serializer());
+    let actual_size = bytes.len();
+    assert_eq!(
+        size,
+        Some(actual_size),
+        "size() should match actual bytes when both Vecs are empty"
+    );
+    assert_eq!(&bytes[..], b"{\"name\":\"Alice\",\"value\":30}");
+}
+
+#[test]
+fn test_two_vec_fields_first_empty_second_nonempty_size_matches_actual() {
+    let person = WithTwoVecFields {
+        name: "Alice".to_string(),
+        tags: vec![],
+        extra: vec!["x".to_string()],
+        value: 30,
+    };
+    let size = person.size();
+    let bytes = collect_bytes(person.into_serializer());
+    let actual_size = bytes.len();
+    assert_eq!(
+        size,
+        Some(actual_size),
+        "size() should match when first empty, second non-empty"
+    );
+}
