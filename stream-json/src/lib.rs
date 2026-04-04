@@ -127,7 +127,7 @@ pub use serde::{
 };
 
 #[cfg(feature = "base64")]
-pub use base64_embed::Base64EmbedURL;
+pub use base64_embed::{Base64EmbedFile, Base64EmbedURL};
 
 #[cfg(feature = "json_value")]
 pub use json_value_impl::JsonValueSerializer;
@@ -150,7 +150,7 @@ pub mod serializers {
     pub use super::std_impl::*;
 
     #[cfg(feature = "base64")]
-    pub use super::base64_embed::Base64EmbedURL;
+    pub use super::base64_embed::{Base64EmbedFile, Base64EmbedURL};
 
     #[cfg(feature = "json_value")]
     pub use super::json_value_impl::JsonValueSerializer;
