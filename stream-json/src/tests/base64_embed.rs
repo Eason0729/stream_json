@@ -32,12 +32,13 @@ fn basic_base64_embed_png_magic_bytes() {
     ];
     let cursor = Cursor::new(png_header);
     let ser = Base64EmbedURL::new(cursor, 16, "image/png".to_string()).unwrap();
-    assert_eq!(ser.size(), Some("data:image/png;base64,".len() + 24));
+    assert_eq!(ser.size(), Some("data:image/png;base64,".len() + 24 + 2));
 
     let output = collect_bytes(ser);
     let output_str = String::from_utf8(output).unwrap();
 
-    assert!(output_str.starts_with("data:image/png;base64,"));
+    assert!(output_str.starts_with("\"data:image/png;base64,"));
+    assert!(output_str.ends_with('"'));
 }
 
 #[test]
@@ -55,7 +56,8 @@ fn basic_base64_embed_with_into_serializer() {
     let output = collect_bytes(ser);
     let output_str = String::from_utf8(output).unwrap();
 
-    assert!(output_str.starts_with("data:image/png;base64,"));
+    assert!(output_str.starts_with("\"data:image/png;base64,"));
+    assert!(output_str.ends_with('"'));
 }
 
 #[test]
@@ -65,13 +67,14 @@ fn basic_base64_embed_empty_data() {
     let ser = Base64EmbedURL::new(cursor, 0, "application/octet-stream".to_string()).unwrap();
     assert_eq!(
         ser.size(),
-        Some("data:application/octet-stream;base64,".len())
+        Some("data:application/octet-stream;base64,".len() + 2)
     );
 
     let output = collect_bytes(ser);
     let output_str = String::from_utf8(output).unwrap();
 
-    assert!(output_str.starts_with("data:application/octet-stream;base64,"));
+    assert!(output_str.starts_with("\"data:application/octet-stream;base64,"));
+    assert!(output_str.ends_with('"'));
 }
 
 #[cfg(target_os = "linux")]

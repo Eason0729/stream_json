@@ -69,7 +69,7 @@ impl<T: AsyncRead + Unpin> Base64EmbedURL<T> {
 
     pub fn size(&self) -> Option<usize> {
         let header = format!("data:{};base64,", self.mime_type);
-        Some(header.len() + base64_len(self.expected_size))
+        Some(header.len() + base64_len(self.expected_size) + 2)
     }
 }
 
@@ -82,7 +82,7 @@ impl<T: AsyncRead + Unpin> Serializer for Base64EmbedURL<T> {
                     mime_type,
                     expected_size,
                 } => {
-                    let header = format!("data:{};base64,", mime_type);
+                    let header = format!("\"data:{};base64,", mime_type);
                     self.state = Base64EmbedURLState::ReadAndEncode {
                         reader,
                         encoded: String::new(),
@@ -123,7 +123,8 @@ impl<T: AsyncRead + Unpin> Serializer for Base64EmbedURL<T> {
                                 bytes_read,
                             ))));
                         }
-                        return Poll::Ready(None);
+                        self.state = Base64EmbedURLState::Done;
+                        return Poll::Ready(Some(Ok(Bytes::from_static(b"\""))));
                     }
 
                     let mut buffer = vec![0u8; CHUNK_SIZE];
@@ -135,7 +136,8 @@ impl<T: AsyncRead + Unpin> Serializer for Base64EmbedURL<T> {
                                     bytes_read,
                                 ))));
                             }
-                            return Poll::Ready(None);
+                            self.state = Base64EmbedURLState::Done;
+                            return Poll::Ready(Some(Ok(Bytes::from_static(b"\""))));
                         }
                         Poll::Ready(Ok(n)) => {
                             let encode_len = if bytes_read + n > expected_size {
