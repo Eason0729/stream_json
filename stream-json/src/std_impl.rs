@@ -391,10 +391,19 @@ where
         if self.emitted {
             return Poll::Ready(None);
         }
-        self.emitted = true;
         match self.inner.as_mut() {
-            Some(serializer) => serializer.poll(cx),
-            None => Poll::Ready(Some(Ok("null".into()))),
+            Some(serializer) => {
+                let result = serializer.poll(cx);
+                if result.is_pending() {
+                    return result;
+                }
+                self.emitted = true;
+                result
+            }
+            None => {
+                self.emitted = true;
+                Poll::Ready(Some(Ok("null".into())))
+            }
         }
     }
 }

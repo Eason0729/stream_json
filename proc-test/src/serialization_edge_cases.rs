@@ -1,6 +1,7 @@
 use bytes::Bytes;
 use futures::io::Cursor;
 use futures_core::task::Poll;
+use std::task::Context;
 use stream_json::base64_embed::{Base64EmbedFile, Base64EmbedURL};
 use stream_json::error::Error;
 use stream_json::serde::{IntoSerializer, Serializer};
@@ -588,6 +589,109 @@ fn test_base64_early_eof_error_detected() {
         "Error message should mention 'expected 16', got: {}",
         err_msg
     );
+}
+
+struct TwoPollSerializer {
+    poll_count: usize,
+}
+
+impl TwoPollSerializer {
+    fn new() -> Self {
+        Self { poll_count: 0 }
+    }
+}
+
+impl Serializer for TwoPollSerializer {
+    fn poll(&mut self, _cx: &mut Context<'_>) -> Poll<Option<Result<Bytes, Error>>> {
+        self.poll_count += 1;
+        match self.poll_count {
+            1 => Poll::Pending,
+            2 => Poll::Ready(Some(Ok(Bytes::from_static(b"\"hello\"")))),
+            _ => Poll::Ready(None),
+        }
+    }
+}
+
+impl IntoSerializer for TwoPollSerializer {
+    type S = Self;
+    fn into_serializer(self) -> Self::S {
+        self
+    }
+    fn size(&self) -> Option<usize> {
+        Some(7)
+    }
+}
+
+impl Unpin for TwoPollSerializer {}
+
+fn collect_bytes_allowing_pending<S: Serializer + Unpin>(mut ser: S) -> Vec<u8> {
+    let waker = std::task::Waker::noop();
+    let mut cx = Context::from_waker(&waker);
+    let mut result = Vec::new();
+    loop {
+        match ser.poll(&mut cx) {
+            Poll::Ready(Some(Ok(bytes))) => result.extend_from_slice(&bytes),
+            Poll::Ready(Some(Err(e))) => panic!("unexpected error: {:?}", e),
+            Poll::Ready(None) => break,
+            Poll::Pending => continue,
+        }
+    }
+    result
+}
+
+#[test]
+fn test_option_with_two_poll_inner_size_matches() {
+    let opt: Option<TwoPollSerializer> = Some(TwoPollSerializer::new());
+    let size = opt.size().expect("size should be known");
+    let bytes = collect_bytes_allowing_pending(opt.into_serializer());
+    let actual_size = bytes.len();
+    assert_eq!(
+        size,
+        actual_size,
+        "size() returned {} but actual output was {} bytes. Output: {:?}",
+        size,
+        actual_size,
+        String::from_utf8_lossy(&bytes)
+    );
+}
+
+#[test]
+fn test_option_none_with_pending_inner_size() {
+    let opt: Option<TwoPollSerializer> = None;
+    assert_size_matches_output(opt);
+}
+
+#[derive(IntoSerializer)]
+struct WithPendingOption {
+    name: String,
+    value: Option<TwoPollSerializer>,
+}
+
+#[test]
+fn test_struct_with_option_requiring_multiple_polls_size_matches() {
+    let s = WithPendingOption {
+        name: "test".to_string(),
+        value: Some(TwoPollSerializer::new()),
+    };
+    let size = s.size().expect("size should be known");
+    let bytes = collect_bytes_allowing_pending(s.into_serializer());
+    assert_eq!(
+        size,
+        bytes.len(),
+        "size() returned {} but actual output was {} bytes. Output: {:?}",
+        size,
+        bytes.len(),
+        String::from_utf8_lossy(&bytes)
+    );
+}
+
+#[test]
+fn test_struct_with_none_option_requiring_multiple_polls_size_matches() {
+    let s = WithPendingOption {
+        name: "test".to_string(),
+        value: None,
+    };
+    assert_size_matches_output(s);
 }
 
 #[test]
