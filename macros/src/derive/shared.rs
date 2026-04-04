@@ -24,6 +24,24 @@ fn escaped_string_size(s: &str) -> usize {
         .sum()
 }
 
+fn escape_json_string(s: &str) -> String {
+    let mut result = String::with_capacity(s.len());
+    for c in s.chars() {
+        match c {
+            '"' => result.push_str("\\\""),
+            '\\' => result.push_str("\\\\"),
+            '\n' => result.push_str("\\n"),
+            '\r' => result.push_str("\\r"),
+            '\t' => result.push_str("\\t"),
+            c if c.is_control() => {
+                result.push_str(&format!("\\u{:04x}", c as u32));
+            }
+            c => result.push(c),
+        }
+    }
+    result
+}
+
 fn key_size(key: &str) -> usize {
     escaped_string_size(key) + 3
 }
@@ -38,7 +56,8 @@ pub fn generate_field_keys(fields: &Fields, _span: Ident) -> (Vec<FieldInfo>, To
                 .map(|(i, f)| {
                     let ident = f.ident.as_ref().cloned().expect("named field has ident");
                     let key = get_field_rename(f).unwrap_or_else(|| ident.to_string());
-                    let key_str = format!("\"{}\":", key);
+                    let escaped_key = escape_json_string(&key);
+                    let key_str = format!("\"{}\":", escaped_key);
                     FieldInfo {
                         index: i,
                         ident: Some(ident),
@@ -147,7 +166,8 @@ pub fn generate_emit_key_arms(name: &Ident, field_infos: &[FieldInfo]) -> Vec<To
             let fname = field_name(fi.index, name.span());
             quote! {
                 #i => {
-                    if !self.#fname.prepare() {
+                    let already_active = matches!(&self.#fname, stream_json::serde::FieldState::Active(_));
+                    if !already_active && !self.#fname.prepare() {
                         if self.field_idx + 1 < self.keys.len() {
                             self.field_idx += 1;
                             self.state = #state_name::EmitKey;
@@ -187,15 +207,54 @@ pub fn generate_emit_value_arms(
                             self.#fname = stream_json::serde::FieldState::Dropped;
                             if self.field_idx + 1 < #field_count {
                                 self.field_idx += 1;
-                                self.state = #state_name::EmitComma;
+                                self.state = #state_name::EmitKeyOrComma;
+                                continue;
                             } else {
                                 self.state = #state_name::ClosingBrace;
+                                continue;
                             }
-                            continue;
                         }
                         std::task::Poll::Pending => {
                             return std::task::Poll::Pending;
                         }
+                    }
+                }
+            }
+        })
+        .collect()
+}
+
+pub fn generate_emit_key_or_comma_arms(
+    name: &Ident,
+    field_infos: &[FieldInfo],
+) -> Vec<TokenStream> {
+    let state_name = state_name(name);
+    field_infos
+        .iter()
+        .map(|fi| {
+            let i = fi.index;
+            let fname = field_name(fi.index, name.span());
+            quote! {
+                #i => {
+                    if self.field_idx >= self.keys.len() {
+                        self.state = #state_name::ClosingBrace;
+                        return std::task::Poll::Ready(Some(Ok(bytes::Bytes::from_static(b""))));
+                    }
+                    if !self.#fname.prepare() {
+                        if self.field_idx + 1 < self.keys.len() {
+                            self.field_idx += 1;
+                            self.state = #state_name::EmitKeyOrComma;
+                            continue;
+                        } else {
+                            self.state = #state_name::ClosingBrace;
+                            return std::task::Poll::Ready(Some(Ok(bytes::Bytes::from_static(b""))));
+                        }
+                    }
+                    if self.field_idx > 0 {
+                        self.state = #state_name::EmitKey;
+                        return std::task::Poll::Ready(Some(Ok(bytes::Bytes::from_static(b","))));
+                    } else {
+                        self.state = #state_name::EmitKey;
                     }
                 }
             }

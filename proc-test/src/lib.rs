@@ -7,6 +7,8 @@ use std::sync::Arc;
 use std::task::Context;
 use stream_json::serde::{IntoSerializer, Serializer};
 
+mod serialization_edge_cases;
+
 fn poll_next<S: Serializer + Unpin>(ser: &mut S) -> Option<Result<Bytes, stream_json::Error>> {
     let waker = std::task::Waker::noop();
     let mut cx = std::task::Context::from_waker(&waker);
@@ -430,7 +432,7 @@ fn test_mixed_struct_with_mixed_attributes() {
     let bytes = collect_bytes(s.into_serializer());
     assert_eq!(
         &bytes[..],
-        b"{\"string_field\":\"hello\",\"int_field\":42,\"bool_field\":false,}"
+        b"{\"string_field\":\"hello\",\"int_field\":42,\"bool_field\":false}"
     );
 }
 

@@ -117,7 +117,7 @@ fn test_json_value_base64_embed_file_to_value() {
         0x52,
     ];
     let cursor = Cursor::new(png_header.clone());
-    let embed = Base64EmbedFile::new(cursor, 16, "image/png".to_string()).unwrap();
+    let embed = Base64EmbedFile::new(cursor, 16).unwrap();
 
     let mut embed_output = Vec::new();
     let waker = std::task::Waker::noop();
@@ -132,6 +132,6 @@ fn test_json_value_base64_embed_file_to_value() {
     let result = super::collect_bytes(value.into_serializer());
     let result_str = String::from_utf8(result).unwrap();
 
-    assert!(result_str.starts_with("{\"image\":\"data:image/png;base64,"));
+    assert!(result_str.starts_with("{\"image\":\""));
     assert!(result_str.contains(&base64::engine::general_purpose::STANDARD.encode(&png_header)));
 }

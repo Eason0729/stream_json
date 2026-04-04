@@ -4,10 +4,11 @@ version.workspace = true
 edition.workspace = true
 
 [dependencies]
-stream-json = { path = "../stream-json", features = ["base64"] }
+stream-json = { path = "../stream-json", features = ["base64", "json_value"] }
 bytes = { workspace = true }
 futures-core = { workspace = true }
 futures = { version = "0.3", features = ["io-compat", "executor"] }
+serde_json = "1"
 
 [dev-dependencies]
 tokio = { version = "1", features = ["full"] }

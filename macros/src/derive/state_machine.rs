@@ -5,8 +5,8 @@ use syn::{Fields, Ident, Visibility};
 use super::super::attributes::{get_field_rename, get_variant_rename};
 use super::super::ident::{serializer_name, state_name};
 use super::shared::{
-    generate_emit_key_arms, generate_emit_value_arms, generate_field_keys,
-    generate_into_serializer_arm, generate_serializer_struct,
+    generate_emit_key_arms, generate_emit_key_or_comma_arms, generate_emit_value_arms,
+    generate_field_keys, generate_into_serializer_arm, generate_serializer_struct,
 };
 
 fn escaped_string_size(s: &str) -> usize {
@@ -108,6 +108,7 @@ pub fn build_struct(name: &Ident, fields: &Fields, vis: &Visibility) -> TokenStr
         generate_serializer_struct(name, vis, fields, &field_infos);
     let emit_key_arms = generate_emit_key_arms(name, &field_infos);
     let emit_value_arms = generate_emit_value_arms(name, &field_infos, field_count);
+    let emit_key_or_comma_arms = generate_emit_key_or_comma_arms(name, &field_infos);
 
     quote! {
         #into_serializer_arm
@@ -118,6 +119,7 @@ pub fn build_struct(name: &Ident, fields: &Fields, vis: &Visibility) -> TokenStr
             Start,
             EmitKey,
             EmitValue,
+            EmitKeyOrComma,
             EmitComma,
             ClosingBrace,
             Done,
@@ -143,6 +145,15 @@ pub fn build_struct(name: &Ident, fields: &Fields, vis: &Visibility) -> TokenStr
                         #state_name::EmitValue => {
                             match self.field_idx {
                                 #(#emit_value_arms)*
+                                _ => {
+                                    self.state = #state_name::ClosingBrace;
+                                    continue;
+                                }
+                            }
+                        }
+                        #state_name::EmitKeyOrComma => {
+                            match self.field_idx {
+                                #(#emit_key_or_comma_arms)*
                                 _ => {
                                     self.state = #state_name::ClosingBrace;
                                     continue;
