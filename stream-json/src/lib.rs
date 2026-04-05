@@ -108,6 +108,7 @@
 pub const CHUNK_SIZE: usize = 128 * 1024;
 
 pub mod error;
+pub mod plaintext;
 pub mod serde;
 pub mod std_impl;
 
@@ -147,6 +148,7 @@ pub mod serializers {
     //! let ser = StringSerializer::new("hello".to_string());
     //! ```
 
+    pub use super::plaintext::PlainText;
     pub use super::std_impl::*;
 
     #[cfg(feature = "base64")]
