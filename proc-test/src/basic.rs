@@ -230,6 +230,20 @@ fn test_unit_struct_wrapper_multi() {
 }
 
 #[derive(IntoSerializer)]
+struct ReservedKeywordField {
+    r#type: String,
+}
+
+#[test]
+fn test_reserved_keyword_field_serializes_correctly() {
+    let s = ReservedKeywordField {
+        r#type: "json".to_string(),
+    };
+    let bytes = collect_bytes(s.into_serializer());
+    assert_eq!(&bytes[..], b"{\"type\":\"json\"}");
+}
+
+#[derive(IntoSerializer)]
 struct UnitStructWrapperWithRename {
     #[stream(rename = "wrapped")]
     inner: UnitStructWrapper,

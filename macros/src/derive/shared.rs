@@ -14,6 +14,11 @@ pub struct FieldInfo {
     pub key_size: usize,
 }
 
+fn strip_raw_prefix(ident: &Ident) -> String {
+    let s = ident.to_string();
+    s.strip_prefix("r#").map(|s| s.to_string()).unwrap_or(s)
+}
+
 pub(super) fn escaped_string_size(s: &str) -> usize {
     s.chars()
         .map(|c| match c {
@@ -55,7 +60,7 @@ pub fn generate_field_keys(fields: &Fields, _span: Ident) -> (Vec<FieldInfo>, To
                 .enumerate()
                 .map(|(i, f)| {
                     let ident = f.ident.as_ref().cloned().expect("named field has ident");
-                    let key = get_field_rename(f).unwrap_or_else(|| ident.to_string());
+                    let key = get_field_rename(f).unwrap_or_else(|| strip_raw_prefix(&ident));
                     let escaped_key = escape_json_string(&key);
                     let key_str = format!("\"{}\":", escaped_key);
                     FieldInfo {
