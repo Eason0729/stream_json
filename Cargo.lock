@@ -383,7 +383,6 @@ dependencies = [
  "bytes 1.11.1",
  "futures 0.3.32",
  "futures-core",
- "futures-io",
  "serde_json",
  "stream-json-macros",
  "thiserror",
