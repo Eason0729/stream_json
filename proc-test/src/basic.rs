@@ -243,6 +243,23 @@ fn test_reserved_keyword_field_serializes_correctly() {
     assert_eq!(&bytes[..], b"{\"type\":\"json\"}");
 }
 
+#[test]
+fn test_reserved_keyword_field_size_matches_output() {
+    let s = ReservedKeywordField {
+        r#type: "json".to_string(),
+    };
+    let size = s.size().expect("size should be known");
+    let bytes = collect_bytes(s.into_serializer());
+    assert_eq!(
+        size,
+        bytes.len(),
+        "size() returned {} but actual output was {}",
+        size,
+        bytes.len()
+    );
+    assert_eq!(&bytes[..], b"{\"type\":\"json\"}");
+}
+
 #[derive(IntoSerializer)]
 struct UnitStructWrapperWithRename {
     #[stream(rename = "wrapped")]

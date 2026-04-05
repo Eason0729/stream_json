@@ -112,3 +112,47 @@ fn test_bool_false() {
     }
     assert!(super::poll_next(&mut ser).is_none());
 }
+
+#[test]
+fn test_multibyte_char_serialization() {
+    assert_eq!("中文".size(), Some(8));
+    let mut ser = "中文".into_serializer();
+    match super::poll_next(&mut ser) {
+        Some(Ok(bytes)) => {
+            assert_eq!(bytes.len(), 8);
+            assert_eq!(&bytes[..], format!("\"中文\"").as_bytes());
+        }
+        other => panic!("expected ready Some Ok \"中文\", got {:?}", other),
+    }
+    assert!(super::poll_next(&mut ser).is_none());
+
+    assert_eq!("Hello 世界".size(), Some(14));
+    let ser = "Hello 世界".into_serializer();
+    let bytes = super::collect_bytes(ser);
+    assert_eq!(bytes.len(), 14);
+    assert_eq!(&bytes[..], format!("\"Hello 世界\"").as_bytes());
+
+    assert_eq!("🎉".size(), Some(6));
+    let ser = "🎉".into_serializer();
+    let bytes = super::collect_bytes(ser);
+    assert_eq!(bytes.len(), 6);
+    assert_eq!(&bytes[..], format!("\"🎉\"").as_bytes());
+
+    assert_eq!("日本語".size(), Some(11));
+    let ser = "日本語".into_serializer();
+    let bytes = super::collect_bytes(ser);
+    assert_eq!(bytes.len(), 11);
+    assert_eq!(&bytes[..], format!("\"日本語\"").as_bytes());
+
+    assert_eq!("中文\n".size(), Some(10));
+    let ser = "中文\n".into_serializer();
+    let bytes = super::collect_bytes(ser);
+    assert_eq!(bytes.len(), 10);
+    assert_eq!(&bytes[..], format!("\"中文\\n\"").as_bytes());
+
+    assert_eq!("你好\r\n世界".size(), Some(18));
+    let ser = "你好\r\n世界".into_serializer();
+    let bytes = super::collect_bytes(ser);
+    assert_eq!(bytes.len(), 18);
+    assert_eq!(&bytes[..], format!("\"你好\\r\\n世界\"").as_bytes());
+}
