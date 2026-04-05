@@ -1,5 +1,4 @@
 use base64::Engine;
-use futures::io::Cursor;
 use futures_core::task::Poll;
 
 use crate::base64_embed::Base64EmbedFile;
@@ -116,8 +115,7 @@ fn test_json_value_base64_embed_file_to_value() {
         0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A, 0x00, 0x00, 0x00, 0x0D, 0x49, 0x48, 0x44,
         0x52,
     ];
-    let cursor = Cursor::new(png_header.clone());
-    let embed = Base64EmbedFile::new(cursor, 16).unwrap();
+    let embed = Base64EmbedFile::new(png_header.clone(), 16).unwrap();
 
     let mut embed_output = Vec::new();
     let waker = std::task::Waker::noop();

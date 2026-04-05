@@ -1,5 +1,4 @@
 use bytes::Bytes;
-use futures::io::Cursor;
 use futures_core::task::Poll;
 use std::task::Context;
 use stream_json::base64_embed::{Base64EmbedFile, Base64EmbedURL};
@@ -473,7 +472,7 @@ fn test_complex_nested_option_skip_none_total_size_matches() {
 
 #[derive(IntoSerializer)]
 struct Base64Wrapper {
-    data: Base64EmbedURL<Cursor<Vec<u8>>>,
+    data: Base64EmbedURL<Vec<u8>>,
 }
 
 #[test]
@@ -482,16 +481,15 @@ fn test_base64_wrapper_size_matches() {
         0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A, 0x00, 0x00, 0x00, 0x0D, 0x49, 0x48, 0x44,
         0x52,
     ];
-    let cursor = Cursor::new(data.clone());
     let wrapper = Base64Wrapper {
-        data: Base64EmbedURL::new(cursor, 16, "image/png".to_string()).unwrap(),
+        data: Base64EmbedURL::new(data, 16, "image/png".to_string()).unwrap(),
     };
     assert_size_matches_output(wrapper);
 }
 
 #[derive(IntoSerializer)]
 struct Base64WrapperFile {
-    data: Base64EmbedFile<Cursor<Vec<u8>>>,
+    data: Base64EmbedFile<Vec<u8>>,
 }
 
 #[test]
@@ -500,9 +498,8 @@ fn test_base64_wrapper_file_size_matches() {
         0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A, 0x00, 0x00, 0x00, 0x0D, 0x49, 0x48, 0x44,
         0x52,
     ];
-    let cursor = Cursor::new(data.clone());
     let wrapper = Base64WrapperFile {
-        data: Base64EmbedFile::new(cursor, 16).unwrap(),
+        data: Base64EmbedFile::new(data, 16).unwrap(),
     };
     assert_size_matches_output(wrapper);
 }
@@ -516,10 +513,9 @@ struct NestedWithBase64 {
 #[test]
 fn test_nested_with_base64_size_matches() {
     let data = vec![0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A];
-    let cursor = Cursor::new(data.clone());
     let s = NestedWithBase64 {
         wrapper: Base64Wrapper {
-            data: Base64EmbedURL::new(cursor, 8, "image/png".to_string()).unwrap(),
+            data: Base64EmbedURL::new(data, 8, "image/png".to_string()).unwrap(),
         },
         label: "test".to_string(),
     };
@@ -535,15 +531,13 @@ struct VecWithBase64 {
 fn test_vec_with_base64_size_matches() {
     let data1 = vec![0x89, 0x50, 0x4E, 0x47];
     let data2 = vec![0x0D, 0x0A, 0x1A, 0x0A];
-    let cursor1 = Cursor::new(data1);
-    let cursor2 = Cursor::new(data2);
     let s = VecWithBase64 {
         images: vec![
             Base64Wrapper {
-                data: Base64EmbedURL::new(cursor1.clone(), 4, "image/png".to_string()).unwrap(),
+                data: Base64EmbedURL::new(data1.clone(), 4, "image/png".to_string()).unwrap(),
             },
             Base64Wrapper {
-                data: Base64EmbedURL::new(cursor1, 4, "image/png".to_string()).unwrap(),
+                data: Base64EmbedURL::new(data1, 4, "image/png".to_string()).unwrap(),
             },
         ],
     };
@@ -555,17 +549,16 @@ struct WithBase64AndSkip {
     label: String,
     #[stream(skip_serialize_if = "|v: &i32| *v == 0")]
     count: i32,
-    data: Base64EmbedURL<Cursor<Vec<u8>>>,
+    data: Base64EmbedURL<Vec<u8>>,
 }
 
 #[test]
 fn test_base64_with_skip_size_matches() {
     let data = vec![0x89, 0x50, 0x4E, 0x47];
-    let cursor = Cursor::new(data.clone());
     let s = WithBase64AndSkip {
         label: "test".to_string(),
         count: 5,
-        data: Base64EmbedURL::new(cursor, 4, "image/png".to_string()).unwrap(),
+        data: Base64EmbedURL::new(data, 4, "image/png".to_string()).unwrap(),
     };
     assert_size_matches_output(s);
 }
@@ -573,11 +566,10 @@ fn test_base64_with_skip_size_matches() {
 #[test]
 fn test_base64_with_skip_count_zero_size_matches() {
     let data = vec![0x89, 0x50, 0x4E, 0x47];
-    let cursor = Cursor::new(data.clone());
     let s = WithBase64AndSkip {
         label: "test".to_string(),
         count: 0,
-        data: Base64EmbedURL::new(cursor, 4, "image/png".to_string()).unwrap(),
+        data: Base64EmbedURL::new(data, 4, "image/png".to_string()).unwrap(),
     };
     assert_size_matches_output(s);
 }
@@ -585,8 +577,7 @@ fn test_base64_with_skip_count_zero_size_matches() {
 #[test]
 fn test_base64_early_eof_error_detected() {
     let data = vec![0x89, 0x50, 0x4E, 0x47];
-    let cursor = Cursor::new(data);
-    let mut ser = Base64EmbedURL::new(cursor, 16, "image/png".to_string()).unwrap();
+    let mut ser = Base64EmbedURL::new(data, 16, "image/png".to_string()).unwrap();
 
     let (_result, err) = collect_bytes_with_errors(&mut ser);
 
@@ -710,8 +701,7 @@ fn test_struct_with_none_option_requiring_multiple_polls_size_matches() {
 #[test]
 fn test_base64_file_early_eof_error_detected() {
     let data = vec![0x89, 0x50, 0x4E, 0x47];
-    let cursor = Cursor::new(data);
-    let mut ser = Base64EmbedFile::new(cursor, 16).unwrap();
+    let mut ser = Base64EmbedFile::new(data, 16).unwrap();
 
     let (_result, err) = collect_bytes_with_errors(&mut ser);
 
@@ -727,9 +717,8 @@ fn test_base64_file_early_eof_error_detected() {
 #[test]
 fn test_nested_base64_early_eof_error_detected() {
     let data = vec![0x89, 0x50, 0x4E, 0x47];
-    let cursor = Cursor::new(data);
     let wrapper = Base64Wrapper {
-        data: Base64EmbedURL::new(cursor, 16, "image/png".to_string()).unwrap(),
+        data: Base64EmbedURL::new(data, 16, "image/png".to_string()).unwrap(),
     };
     let mut ser = wrapper.into_serializer();
 
@@ -747,9 +736,8 @@ fn test_nested_base64_early_eof_error_detected() {
 #[test]
 fn test_vec_with_base64_early_eof_error_detected() {
     let data = vec![0x89, 0x50, 0x4E, 0x47];
-    let cursor = Cursor::new(data);
     let wrapper = Base64Wrapper {
-        data: Base64EmbedURL::new(cursor, 16, "image/png".to_string()).unwrap(),
+        data: Base64EmbedURL::new(data, 16, "image/png".to_string()).unwrap(),
     };
     let s = VecWithBase64 {
         images: vec![wrapper],
@@ -1168,18 +1156,17 @@ struct Base64Outer {
 #[derive(IntoSerializer)]
 struct Base64Inner {
     #[stream(rename = "image_data")]
-    data: Base64EmbedURL<Cursor<Vec<u8>>>,
+    data: Base64EmbedURL<Vec<u8>>,
 }
 
 #[test]
 fn test_deeply_nested_base64_early_eof_error_detected() {
     let data = vec![0x89, 0x50, 0x4E, 0x47];
-    let cursor = Cursor::new(data);
     let s = Base64InNestedStruct {
         outer: Base64Outer {
             label: "test".to_string(),
             inner: Base64Inner {
-                data: Base64EmbedURL::new(cursor, 16, "image/png".to_string()).unwrap(),
+                data: Base64EmbedURL::new(data, 16, "image/png".to_string()).unwrap(),
             },
         },
     };
@@ -1204,18 +1191,17 @@ struct ComplexSkipRenameBase64Combo {
     #[stream(rename = "count")]
     #[stream(skip_serialize_if = "|v: &i32| *v <= 0")]
     count: i32,
-    data: Base64EmbedURL<Cursor<Vec<u8>>>,
+    data: Base64EmbedURL<Vec<u8>>,
     metadata: serde_json::Value,
 }
 
 #[test]
 fn test_complex_combo_all_present_size_matches() {
     let data = vec![0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A];
-    let cursor = Cursor::new(data.clone());
     let s = ComplexSkipRenameBase64Combo {
         label: "Visible".to_string(),
         count: 10,
-        data: Base64EmbedURL::new(cursor, 8, "image/png".to_string()).unwrap(),
+        data: Base64EmbedURL::new(data, 8, "image/png".to_string()).unwrap(),
         metadata: serde_json::json!({"key": "value"}),
     };
     assert_size_matches_output(s);
@@ -1224,11 +1210,10 @@ fn test_complex_combo_all_present_size_matches() {
 #[test]
 fn test_complex_combo_label_skipped_size_matches() {
     let data = vec![0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A];
-    let cursor = Cursor::new(data.clone());
     let s = ComplexSkipRenameBase64Combo {
         label: "".to_string(),
         count: 10,
-        data: Base64EmbedURL::new(cursor, 8, "image/png".to_string()).unwrap(),
+        data: Base64EmbedURL::new(data, 8, "image/png".to_string()).unwrap(),
         metadata: serde_json::json!({"key": "value"}),
     };
     assert_size_matches_output(s);
@@ -1237,11 +1222,10 @@ fn test_complex_combo_label_skipped_size_matches() {
 #[test]
 fn test_complex_combo_count_skipped_size_matches() {
     let data = vec![0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A];
-    let cursor = Cursor::new(data.clone());
     let s = ComplexSkipRenameBase64Combo {
         label: "test".to_string(),
         count: 0,
-        data: Base64EmbedURL::new(cursor, 8, "image/png".to_string()).unwrap(),
+        data: Base64EmbedURL::new(data, 8, "image/png".to_string()).unwrap(),
         metadata: serde_json::json!({"key": "value"}),
     };
     assert_size_matches_output(s);
@@ -1250,11 +1234,10 @@ fn test_complex_combo_count_skipped_size_matches() {
 #[test]
 fn test_complex_combo_both_skipped_size_matches() {
     let data = vec![0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A];
-    let cursor = Cursor::new(data.clone());
     let s = ComplexSkipRenameBase64Combo {
         label: "".to_string(),
         count: 0,
-        data: Base64EmbedURL::new(cursor, 8, "image/png".to_string()).unwrap(),
+        data: Base64EmbedURL::new(data, 8, "image/png".to_string()).unwrap(),
         metadata: serde_json::json!({"key": "value"}),
     };
     assert_size_matches_output(s);
@@ -1263,11 +1246,10 @@ fn test_complex_combo_both_skipped_size_matches() {
 #[test]
 fn test_complex_combo_early_eof_error_detected() {
     let data = vec![0x89, 0x50, 0x4E, 0x47];
-    let cursor = Cursor::new(data);
     let s = ComplexSkipRenameBase64Combo {
         label: "test".to_string(),
         count: 5,
-        data: Base64EmbedURL::new(cursor, 16, "image/png".to_string()).unwrap(),
+        data: Base64EmbedURL::new(data, 16, "image/png".to_string()).unwrap(),
         metadata: serde_json::json!({"key": "value"}),
     };
     let mut ser = s.into_serializer();

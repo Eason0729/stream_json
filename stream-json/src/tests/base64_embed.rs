@@ -1,6 +1,5 @@
 use base64::Engine;
 use bytes::Bytes;
-use futures::io::Cursor;
 use futures_core::task::Poll;
 
 use crate::base64_embed::{Base64EmbedFile, Base64EmbedURL};
@@ -30,8 +29,7 @@ fn basic_base64_embed_png_magic_bytes() {
         0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A, 0x00, 0x00, 0x00, 0x0D, 0x49, 0x48, 0x44,
         0x52,
     ];
-    let cursor = Cursor::new(png_header);
-    let ser = Base64EmbedURL::new(cursor, 16, "image/png".to_string()).unwrap();
+    let ser = Base64EmbedURL::new(png_header, 16, "image/png".to_string()).unwrap();
     assert_eq!(ser.size(), Some("data:image/png;base64,".len() + 24 + 2));
 
     let output = collect_bytes(ser);
@@ -49,8 +47,7 @@ fn basic_base64_embed_with_into_serializer() {
         0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A, 0x00, 0x00, 0x00, 0x0D, 0x49, 0x48, 0x44,
         0x52,
     ];
-    let cursor = Cursor::new(png_header);
-    let embed = Base64EmbedURL::new(cursor, 16, "image/png".to_string()).unwrap();
+    let embed = Base64EmbedURL::new(png_header, 16, "image/png".to_string()).unwrap();
     let ser = embed.into_serializer();
 
     let output = collect_bytes(ser);
@@ -63,8 +60,7 @@ fn basic_base64_embed_with_into_serializer() {
 #[test]
 fn basic_base64_embed_empty_data() {
     let data = Vec::new();
-    let cursor = Cursor::new(data);
-    let ser = Base64EmbedURL::new(cursor, 0, "application/octet-stream".to_string()).unwrap();
+    let ser = Base64EmbedURL::new(data, 0, "application/octet-stream".to_string()).unwrap();
     assert_eq!(
         ser.size(),
         Some("data:application/octet-stream;base64,".len() + 2)
@@ -104,9 +100,8 @@ fn basic_base64_embed_empty_data() {
 
 //         assert_physical_memory_increases_by_at_least(0, || {
 //             let data = std::fs::read("testdata/large_image.png").expect("failed to read file");
-//             let cursor = Cursor::new(data);
 //             let ser =
-//                 Base64EmbedURL::new(cursor, 10 * 1024 * 1024, "image/png".to_string()).unwrap();
+//                 Base64EmbedURL::new(data, 10 * 1024 * 1024, "image/png".to_string()).unwrap();
 
 //             let output = collect_bytes(ser);
 //             std::hint::black_box(output)
@@ -117,8 +112,7 @@ fn basic_base64_embed_empty_data() {
 #[test]
 fn base64_embed_correct_size() {
     let data = vec![0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A];
-    let cursor = Cursor::new(data.clone());
-    let ser = Base64EmbedURL::new(cursor, 8, "image/png".to_string()).unwrap();
+    let ser = Base64EmbedURL::new(data.clone(), 8, "image/png".to_string()).unwrap();
 
     let output = collect_bytes(ser);
     let output_str = String::from_utf8(output).unwrap();
@@ -130,8 +124,7 @@ fn base64_embed_correct_size() {
 #[test]
 fn base64_embed_early_eof_error() {
     let data = vec![0x89, 0x50, 0x4E, 0x47];
-    let cursor = Cursor::new(data);
-    let mut ser = Base64EmbedURL::new(cursor, 16, "image/png".to_string()).unwrap();
+    let mut ser = Base64EmbedURL::new(data, 16, "image/png".to_string()).unwrap();
 
     let mut result = Vec::new();
     let mut err = None;
@@ -157,8 +150,7 @@ fn base64_embed_late_eof_truncates() {
         0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A, 0x00, 0x00, 0x00, 0x0D, 0x49, 0x48, 0x44,
         0x52, 0xFF, 0xFE,
     ];
-    let cursor = Cursor::new(data.clone());
-    let ser = Base64EmbedURL::new(cursor, 16, "image/png".to_string()).unwrap();
+    let ser = Base64EmbedURL::new(data.clone(), 16, "image/png".to_string()).unwrap();
 
     let output = collect_bytes(ser);
     let output_str = String::from_utf8(output).unwrap();
@@ -174,8 +166,7 @@ fn base64_embed_file_basic() {
         0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A, 0x00, 0x00, 0x00, 0x0D, 0x49, 0x48, 0x44,
         0x52,
     ];
-    let cursor = Cursor::new(png_header.clone());
-    let ser = Base64EmbedFile::new(cursor, 16).unwrap();
+    let ser = Base64EmbedFile::new(png_header.clone(), 16).unwrap();
     assert_eq!(ser.size(), Some(26));
 
     let output = collect_bytes(ser);
@@ -188,8 +179,7 @@ fn base64_embed_file_basic() {
 #[test]
 fn base64_embed_file_empty_data() {
     let data = Vec::new();
-    let cursor = Cursor::new(data);
-    let ser = Base64EmbedFile::new(cursor, 0).unwrap();
+    let ser = Base64EmbedFile::new(data, 0).unwrap();
     assert_eq!(ser.size(), Some(2));
 
     let output = collect_bytes(ser);
@@ -201,8 +191,7 @@ fn base64_embed_file_empty_data() {
 #[test]
 fn base64_embed_file_correct_size() {
     let data = vec![0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A];
-    let cursor = Cursor::new(data.clone());
-    let ser = Base64EmbedFile::new(cursor, 8).unwrap();
+    let ser = Base64EmbedFile::new(data.clone(), 8).unwrap();
 
     let output = collect_bytes(ser);
     let output_str = String::from_utf8(output).unwrap();
@@ -214,8 +203,7 @@ fn base64_embed_file_correct_size() {
 #[test]
 fn base64_embed_file_early_eof_error() {
     let data = vec![0x89, 0x50, 0x4E, 0x47];
-    let cursor = Cursor::new(data);
-    let mut ser = Base64EmbedFile::new(cursor, 16).unwrap();
+    let mut ser = Base64EmbedFile::new(data, 16).unwrap();
 
     let mut result = Vec::new();
     let mut err = None;
@@ -241,8 +229,7 @@ fn base64_embed_file_late_eof_truncates() {
         0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A, 0x00, 0x00, 0x00, 0x0D, 0x49, 0x48, 0x44,
         0x52, 0xFF, 0xFE,
     ];
-    let cursor = Cursor::new(data.clone());
-    let ser = Base64EmbedFile::new(cursor, 16).unwrap();
+    let ser = Base64EmbedFile::new(data.clone(), 16).unwrap();
 
     let output = collect_bytes(ser);
     let output_str = String::from_utf8(output).unwrap();
@@ -259,8 +246,7 @@ fn base64_embed_file_with_into_serializer() {
         0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A, 0x00, 0x00, 0x00, 0x0D, 0x49, 0x48, 0x44,
         0x52,
     ];
-    let cursor = Cursor::new(png_header.clone());
-    let embed = Base64EmbedFile::new(cursor, 16).unwrap();
+    let embed = Base64EmbedFile::new(png_header.clone(), 16).unwrap();
     let ser = embed.into_serializer();
 
     let output = collect_bytes(ser);
@@ -276,8 +262,7 @@ fn base64_embed_file_serializes_with_quotes() {
         0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A, 0x00, 0x00, 0x00, 0x0D, 0x49, 0x48, 0x44,
         0x52,
     ];
-    let cursor = Cursor::new(png_header.clone());
-    let ser = Base64EmbedFile::new(cursor, 16).unwrap();
+    let ser = Base64EmbedFile::new(png_header.clone(), 16).unwrap();
 
     let output = collect_bytes(ser);
     let output_str = String::from_utf8(output).unwrap();
