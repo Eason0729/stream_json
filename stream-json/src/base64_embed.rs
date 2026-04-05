@@ -26,6 +26,10 @@ enum Base64EmbedURLState<T: AsyncRead + Unpin> {
 }
 
 enum Base64EmbedFileState<T: AsyncRead + Unpin> {
+    EmitStart {
+        reader: T,
+        expected_size: usize,
+    },
     ReadAndEncode {
         reader: T,
         encoded: String,
@@ -117,7 +121,7 @@ impl<T: AsyncRead + Unpin> Serializer for Base64EmbedURL<T> {
                     }
 
                     if eof {
-                        if bytes_read != expected_size {
+                        if bytes_read < expected_size {
                             return Poll::Ready(Some(Err(size_mismatch(
                                 expected_size,
                                 bytes_read,
@@ -130,7 +134,7 @@ impl<T: AsyncRead + Unpin> Serializer for Base64EmbedURL<T> {
                     let mut buffer = vec![0u8; CHUNK_SIZE];
                     match std::pin::Pin::new(&mut reader).poll_read(cx, &mut buffer) {
                         Poll::Ready(Ok(0)) => {
-                            if bytes_read != expected_size {
+                            if bytes_read < expected_size {
                                 return Poll::Ready(Some(Err(size_mismatch(
                                     expected_size,
                                     bytes_read,
@@ -192,20 +196,16 @@ pub struct Base64EmbedFile<T: AsyncRead + Unpin> {
 impl<T: AsyncRead + Unpin> Base64EmbedFile<T> {
     pub fn new(reader: T, expected_size: usize) -> Result<Self, Error> {
         Ok(Self {
-            state: Base64EmbedFileState::ReadAndEncode {
+            state: Base64EmbedFileState::EmitStart {
                 reader,
-                encoded: String::new(),
-                chunk_start: 0,
-                eof: false,
                 expected_size,
-                bytes_read: 0,
             },
             expected_size,
         })
     }
 
     pub fn size(&self) -> Option<usize> {
-        Some(base64_len(self.expected_size))
+        Some(base64_len(self.expected_size) + 2)
     }
 }
 
@@ -213,6 +213,20 @@ impl<T: AsyncRead + Unpin> Serializer for Base64EmbedFile<T> {
     fn poll(&mut self, cx: &mut Context<'_>) -> Poll<Option<Result<Bytes, Error>>> {
         loop {
             match std::mem::replace(&mut self.state, Base64EmbedFileState::Done) {
+                Base64EmbedFileState::EmitStart {
+                    reader,
+                    expected_size,
+                } => {
+                    self.state = Base64EmbedFileState::ReadAndEncode {
+                        reader,
+                        encoded: String::new(),
+                        chunk_start: 0,
+                        eof: false,
+                        expected_size,
+                        bytes_read: 0,
+                    };
+                    return Poll::Ready(Some(Ok(Bytes::from_static(b"\""))));
+                }
                 Base64EmbedFileState::ReadAndEncode {
                     mut reader,
                     mut encoded,
@@ -243,7 +257,8 @@ impl<T: AsyncRead + Unpin> Serializer for Base64EmbedFile<T> {
                                 bytes_read,
                             ))));
                         }
-                        return Poll::Ready(None);
+                        self.state = Base64EmbedFileState::Done;
+                        return Poll::Ready(Some(Ok(Bytes::from_static(b"\""))));
                     }
 
                     let mut buffer = vec![0u8; CHUNK_SIZE];
@@ -255,15 +270,13 @@ impl<T: AsyncRead + Unpin> Serializer for Base64EmbedFile<T> {
                                     bytes_read,
                                 ))));
                             }
-                            return Poll::Ready(None);
+                            self.state = Base64EmbedFileState::Done;
+                            return Poll::Ready(Some(Ok(Bytes::from_static(b"\""))));
                         }
                         Poll::Ready(Ok(n)) => {
-                            let encode_len = if bytes_read + n > expected_size {
-                                expected_size - bytes_read
-                            } else {
-                                n
-                            };
-                            bytes_read += n;
+                            let remaining = expected_size.saturating_sub(bytes_read);
+                            let encode_len = std::cmp::min(n, remaining);
+                            bytes_read += encode_len;
                             encoded = base64::engine::general_purpose::STANDARD
                                 .encode(&buffer[..encode_len]);
                             chunk_start = 0;

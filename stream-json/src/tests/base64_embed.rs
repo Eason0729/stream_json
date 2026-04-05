@@ -176,13 +176,13 @@ fn base64_embed_file_basic() {
     ];
     let cursor = Cursor::new(png_header.clone());
     let ser = Base64EmbedFile::new(cursor, 16).unwrap();
-    assert_eq!(ser.size(), Some(24));
+    assert_eq!(ser.size(), Some(26));
 
     let output = collect_bytes(ser);
     let output_str = String::from_utf8(output).unwrap();
 
     let expected_base64 = base64::engine::general_purpose::STANDARD.encode(&png_header);
-    assert_eq!(output_str, expected_base64);
+    assert_eq!(output_str, format!("\"{}\"", expected_base64));
 }
 
 #[test]
@@ -190,12 +190,12 @@ fn base64_embed_file_empty_data() {
     let data = Vec::new();
     let cursor = Cursor::new(data);
     let ser = Base64EmbedFile::new(cursor, 0).unwrap();
-    assert_eq!(ser.size(), Some(0));
+    assert_eq!(ser.size(), Some(2));
 
     let output = collect_bytes(ser);
     let output_str = String::from_utf8(output).unwrap();
 
-    assert_eq!(output_str, "");
+    assert_eq!(output_str, "\"\"");
 }
 
 #[test]
@@ -208,7 +208,7 @@ fn base64_embed_file_correct_size() {
     let output_str = String::from_utf8(output).unwrap();
 
     let expected_base64 = base64::engine::general_purpose::STANDARD.encode(&data);
-    assert_eq!(output_str, expected_base64);
+    assert_eq!(output_str, format!("\"{}\"", expected_base64));
 }
 
 #[test]
@@ -248,7 +248,7 @@ fn base64_embed_file_late_eof_truncates() {
     let output_str = String::from_utf8(output).unwrap();
 
     let expected_base64 = base64::engine::general_purpose::STANDARD.encode(&data[..16]);
-    assert_eq!(output_str, expected_base64);
+    assert_eq!(output_str, format!("\"{}\"", expected_base64));
 }
 
 #[test]
@@ -267,5 +267,21 @@ fn base64_embed_file_with_into_serializer() {
     let output_str = String::from_utf8(output).unwrap();
 
     let expected_base64 = base64::engine::general_purpose::STANDARD.encode(&png_header);
-    assert_eq!(output_str, expected_base64);
+    assert_eq!(output_str, format!("\"{}\"", expected_base64));
+}
+
+#[test]
+fn base64_embed_file_serializes_with_quotes() {
+    let png_header = vec![
+        0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A, 0x00, 0x00, 0x00, 0x0D, 0x49, 0x48, 0x44,
+        0x52,
+    ];
+    let cursor = Cursor::new(png_header.clone());
+    let ser = Base64EmbedFile::new(cursor, 16).unwrap();
+
+    let output = collect_bytes(ser);
+    let output_str = String::from_utf8(output).unwrap();
+
+    assert!(output_str.starts_with('"'));
+    assert!(output_str.ends_with('"'));
 }
