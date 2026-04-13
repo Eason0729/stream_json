@@ -1,19 +1,39 @@
 use quote::ToTokens;
-use syn::{Attribute, Field, Variant};
+use syn::{Attribute, Field, Meta, Variant};
 
 pub fn get_stream_rename(attr: &Attribute) -> Option<String> {
     if !attr.path().is_ident("stream") {
         return None;
     }
-    let mut rename = None;
-    let _ = attr.parse_nested_meta(|meta| {
-        if meta.path.is_ident("rename") {
-            let lit: syn::LitStr = meta.value()?.parse()?;
-            rename = Some(lit.value());
+    if let Meta::List(meta_list) = &attr.meta {
+        let tokens = &meta_list.tokens;
+        let mut iter = tokens.clone().into_iter().peekable();
+        while let Some(token) = iter.next() {
+            if let proc_macro2::TokenTree::Ident(ident) = &token {
+                if ident == "rename" {
+                    if let Some(next) = iter.next() {
+                        if let proc_macro2::TokenTree::Punct(punct) = next {
+                            if punct.as_char() == '=' {
+                                if let Some(next) = iter.next() {
+                                    if let proc_macro2::TokenTree::Literal(lit) = next {
+                                        let lit_str = lit.to_string();
+                                        if let Ok(expr) = syn::parse_str::<syn::Expr>(&lit_str) {
+                                            if let syn::Expr::Lit(expr_lit) = expr {
+                                                if let syn::Lit::Str(s) = expr_lit.lit {
+                                                    return Some(s.value());
+                                                }
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
         }
-        Ok(())
-    });
-    rename
+    }
+    None
 }
 
 pub fn get_field_rename(field: &Field) -> Option<String> {

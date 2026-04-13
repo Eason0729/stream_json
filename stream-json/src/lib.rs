@@ -127,6 +127,8 @@ pub use serde::{
     Token, TokenSerializer,
 };
 
+pub use plaintext::PlainText;
+
 #[cfg(feature = "base64")]
 pub use base64_embed::{Base64EmbedFile, Base64EmbedURL};
 

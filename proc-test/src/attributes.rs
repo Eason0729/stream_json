@@ -484,3 +484,30 @@ fn test_two_vec_fields_first_empty_second_nonempty_size_matches_actual() {
         "size() should match when first empty, second non-empty"
     );
 }
+
+#[derive(IntoSerializer)]
+pub struct SkipBeforeRename {
+    #[stream(
+        skip_serialize_if = "|v: &String| v.is_empty()",
+        rename = "renamed_field"
+    )]
+    pub field: String,
+}
+
+#[test]
+fn test_skip_before_rename_included() {
+    let s = SkipBeforeRename {
+        field: "visible".to_string(),
+    };
+    let bytes = collect_bytes(s.into_serializer());
+    assert_eq!(&bytes[..], b"{\"renamed_field\":\"visible\"}");
+}
+
+#[test]
+fn test_skip_before_rename_skipped() {
+    let s = SkipBeforeRename {
+        field: "".to_string(),
+    };
+    let bytes = collect_bytes(s.into_serializer());
+    assert_eq!(&bytes[..], b"{}");
+}
